@@ -47,6 +47,57 @@ assert(
   "routes discovered thinking variants",
 );
 
+const argonCatalog = buildAntigravityCatalog(
+  {
+    "gemini-4-argon-low": info("Gemini 4 Argon (Low)"),
+    "gemini-4-argon-medium": info("Gemini 4 Argon (Medium)"),
+    "gemini-4-argon-high": info("Gemini 4 Argon (High)"),
+    "disabled-model": info("Disabled Model", { disabled: true }),
+  },
+  fallback,
+);
+assert(argonCatalog.models.some((model) => model.id === "gemini-4-argon"), "discovers gemini-4-argon");
+assert(!argonCatalog.models.some((model) => model.id === "disabled-model"), "filters disabled models");
+assert(argonCatalog.models[0]?.id === "gemini-4-argon", "gemini-4-argon ranks first");
+assert(
+  argonCatalog.routing["gemini-4-argon"]?.routing?.medium === "gemini-4-argon-medium",
+  "routes discovered gemini-4-argon thinking variants",
+);
+
+// Multi-endpoint merge: fallback disabled entry must not overwrite enabled entry with quotaInfo
+const multiEndpointMerged = mergeAvailableModelsResults([
+  {
+    endpoint: "https://daily-cloudcode-pa.googleapis.com",
+    status: 200,
+    data: {
+      models: {
+        "gemini-4-argon-low": {
+          displayName: "Gemini 4 Argon (Low)",
+          model: "MODEL_PLACEHOLDER_M419",
+          quotaInfo: { remainingFraction: 0.88, resetTime: "2026-10-23T00:00:00Z" },
+        },
+      },
+    },
+  },
+  {
+    endpoint: "https://cloudcode-pa.googleapis.com",
+    status: 200,
+    data: {
+      models: {
+        "gemini-4-argon-low": {
+          displayName: "Gemini 4 Argon (Low)",
+          model: "MODEL_PLACEHOLDER_M419",
+          disabled: true,
+          tagTitle: "Upgrade",
+        },
+      },
+    },
+  },
+]);
+const mergedArgon = multiEndpointMerged.data.models?.["gemini-4-argon-low"];
+assert(mergedArgon?.disabled !== true, "multi-endpoint merge does not overwrite enabled entry with disabled fallback");
+assert(mergedArgon?.quotaInfo?.remainingFraction === 0.88, "multi-endpoint merge retains quotaInfo from primary endpoint");
+
 // Provider-owned persistence restores routing and dynamic enums before offline/network checks.
 const dynamicCatalog = buildAntigravityCatalog(
   { "gemini-9.9-flash-low": info("Gemini 9.9 Flash (Low)") },

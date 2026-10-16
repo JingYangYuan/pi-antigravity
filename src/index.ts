@@ -172,7 +172,7 @@ export default function (pi: ExtensionAPI): void {
   );
 
   pi.registerCommand("antigravity.usage", {
-    description: "Show Antigravity shared quota pools (Gemini / Claude+GPT, 5h + weekly)",
+    description: "Show Antigravity shared quota pools (Gemini / Argon / Claude+GPT, 5h + weekly)",
     handler: async (_args, ctx) => {
       await withUsage(ctx, formatUsageSummary);
     },

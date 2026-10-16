@@ -61,7 +61,7 @@ export function endpointCandidates(): string[] {
 }
 
 const DEFAULT_USER_AGENT =
-  "antigravity/cli/1.2.4 (aidev_client; os_type=linux; arch=amd64; cl=982146307; auth_method=consumer)";
+  "antigravity/cli/1.3.6 (aidev_client; os_type=linux; arch=amd64; cl=982146307; auth_method=consumer)";
 
 /** Default User-Agent matching pure Antigravity CLI wire fingerprint. */
 export function defaultUserAgent(): string {
@@ -209,6 +209,9 @@ function buildModelMatchRegex(requestedId: string): RegExp {
   //   gemini-3.5-flash-extra-low → "Gemini 3.5 Flash (Low)"
   //   gemini-3.5-flash-low       → "Gemini 3.5 Flash (Medium)"
   //   gemini-3-flash-agent       → "Gemini 3.5 Flash (High)"
+  if (req === "gemini-4-argon-low") return /gemini[- ]4[- ]argon \(low\)/i;
+  if (req === "gemini-4-argon-medium") return /gemini[- ]4[- ]argon \(medium\)/i;
+  if (req === "gemini-4-argon-high") return /gemini[- ]4[- ]argon \(high\)/i;
   if (req === "gemini-3.8-flash-low") return /gemini[- ]3\.8[- ]flash \(low\)/i;
   if (req === "gemini-3.8-flash-medium") return /gemini[- ]3\.8[- ]flash \(medium\)/i;
   if (req === "gemini-3.8-flash-high") return /gemini[- ]3\.8[- ]flash \(high\)/i;
@@ -424,6 +427,30 @@ function catalogSignal(signal?: AbortSignal): AbortSignal {
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
+function shouldReplaceModelEntry(existing: unknown, incoming: unknown): boolean {
+  if (!isRecord(existing)) return true;
+  if (!isRecord(incoming)) return false;
+
+  const existingDisabled = existing.disabled === true;
+  const incomingDisabled = incoming.disabled === true;
+
+  // Never overwrite an enabled model with a disabled one from a fallback endpoint
+  if (!existingDisabled && incomingDisabled) return false;
+
+  // An enabled model replaces a disabled one
+  if (existingDisabled && !incomingDisabled) return true;
+
+  // Prefer entries with quotaInfo over entries without quotaInfo
+  const existingHasQuota = isRecord(existing.quotaInfo);
+  const incomingHasQuota = isRecord(incoming.quotaInfo);
+  if (!existingHasQuota && incomingHasQuota) return true;
+  if (existingHasQuota && !incomingHasQuota) return false;
+
+  // If both have quota (or neither does) and neither is disabled,
+  // keep the higher-priority endpoint's entry
+  return false;
+}
+
 /** Merge catalog payloads from one or more fetchAvailableModels responses. */
 export function mergeAvailableModelsResults(
   results: Array<{ endpoint: string; status: number; data: unknown } | undefined>,
@@ -442,7 +469,11 @@ export function mergeAvailableModelsResults(
     lastStatus = result.status;
     const data = result.data;
     if (isRecord(data) && isRecord(data.models)) {
-      Object.assign(mergedModels, data.models);
+      for (const [modelId, modelInfo] of Object.entries(data.models)) {
+        if (!mergedModels[modelId] || shouldReplaceModelEntry(mergedModels[modelId], modelInfo)) {
+          mergedModels[modelId] = modelInfo;
+        }
+      }
       registerDiscoveredModelEnums(data.models as Record<string, { model?: unknown }>);
     }
     if (isRecord(data) && typeof data.defaultAgentModelId === "string") {

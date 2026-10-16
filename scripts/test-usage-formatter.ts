@@ -24,4 +24,37 @@ assert.ok(
   out.includes("needs a paid subscription") || out.includes("free-tier can't use that endpoint"),
 );
 
+const argonUsage = {
+  ...baseUsage,
+  groups: [
+    {
+      groupName: "Gemini 4 Argon",
+      buckets: [
+        {
+          bucketId: "gemini-argon-wtu-weekly",
+          displayName: "Gemini 4 Argon Weekly Limit",
+          window: "weekly",
+          remainingFraction: 0.88,
+          resetTime: "2026-10-23T00:00:00Z",
+        },
+      ],
+    },
+  ],
+  models: [
+    {
+      id: "gemini-4-argon-low",
+      displayName: "Gemini 4 Argon (Low)",
+      quotaFraction: 0.88,
+      resetTime: "2026-10-23T00:00:00Z",
+      supportsImages: true,
+      supportsThinking: true,
+      contextWindow: 1048576,
+      maxTokens: 65536,
+    },
+  ],
+};
+const argonOut = formatUsageSummary(argonUsage);
+assert.ok(argonOut.includes("Gemini 4 Argon"));
+assert.ok(argonOut.includes("88%"));
+
 console.log("Usage formatter tests passed!");

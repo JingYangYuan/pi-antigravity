@@ -23,6 +23,17 @@ export const PROVIDER_NAME = "Antigravity";
  * advertised by the backend for each model.
  */
 export const ANTIGRAVITY_ROUTING: Record<string, AntigravityRouting> = {
+  "gemini-4-argon": {
+    off: "gemini-4-argon-low",
+    routing: {
+      minimal: "gemini-4-argon-low",
+      low: "gemini-4-argon-low",
+      medium: "gemini-4-argon-medium",
+      high: "gemini-4-argon-high",
+      xhigh: "gemini-4-argon-high",
+    },
+    defaultRequestId: "gemini-4-argon-low",
+  },
   "claude-opus-4-6": {
     routing: {
       minimal: "claude-opus-4-6-thinking",
@@ -119,6 +130,10 @@ export const ANTIGRAVITY_ROUTING: Record<string, AntigravityRouting> = {
  * Requesting more than these limits returns a 400 Bad Request from the API.
  */
 export const RUNTIME_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  "gemini-4-argon": 65536,
+  "gemini-4-argon-low": 65536,
+  "gemini-4-argon-medium": 65536,
+  "gemini-4-argon-high": 65536,
   "gemini-3.8-flash": 65536,
   "gemini-3.8-flash-low": 65536,
   "gemini-3.8-flash-medium": 65536,
@@ -214,6 +229,16 @@ const thinkingLevelMaps = {
 
 /** Same set as `agy models`, collapsed to public Pi model IDs. */
 export const ANTIGRAVITY_MODELS: ProviderModelConfig[] = [
+  {
+    id: "gemini-4-argon",
+    name: "Gemini 4 Argon (Antigravity)",
+    reasoning: true,
+    thinkingLevelMap: thinkingLevelMaps.lowMediumHigh,
+    input: ["text", "image"],
+    cost: geminiProCost,
+    contextWindow: 1048576,
+    maxTokens: 65536,
+  },
   {
     id: "gemini-3.8-flash",
     name: "Gemini 3.8 Flash (Antigravity)",
@@ -379,6 +404,11 @@ export function getFallbackRuntimeModel(runtimeModel: string, effort?: string): 
 export type { ThinkingWire };
 
 export const ANTIGRAVITY_MODEL_ENUM: Record<string, string> = {
+  // Gemini 4 Argon
+  "gemini-4-argon": "MODEL_PLACEHOLDER_M417",
+  "gemini-4-argon-high": "MODEL_PLACEHOLDER_M417",
+  "gemini-4-argon-medium": "MODEL_PLACEHOLDER_M418",
+  "gemini-4-argon-low": "MODEL_PLACEHOLDER_M419",
   // Gemini 3.8 Flash
   "gemini-3.8-flash": "MODEL_PLACEHOLDER_M318",
   "gemini-3.8-flash-high": "MODEL_PLACEHOLDER_M318",
@@ -476,6 +506,10 @@ export function getThinkingConfig(
   if (modelId.startsWith("gpt-oss-")) {
     if (!effort || effort === "off") return { includeThoughts: false, thinkingBudget: 0 };
     return { includeThoughts: true, thinkingBudget: 8192 };
+  }
+  if (modelId.startsWith("gemini-4-argon") || /^gemini-\d+(?:\.\d+)?-argon/i.test(modelId)) {
+    if (!effort || effort === "off") return { includeThoughts: false, thinkingBudget: -1 };
+    return { includeThoughts: true, thinkingBudget: -1 };
   }
   if (modelId.startsWith("gemini-3.5-flash") || modelId === "gemini-3-flash-agent") {
     if (!effort || effort === "off") return { includeThoughts: false, thinkingBudget: 0 };

@@ -16,9 +16,11 @@ import { getLastDiagnostics, resetDiagnosticsForTests, setLastError } from "../s
 import { GeminiToolCallingMode, StopReason, ToolChoice } from "../src/types/enums.js";
 import {
   ANTIGRAVITY_MODELS,
+  ANTIGRAVITY_MODEL_ENUM,
   getMaxOutputTokens,
   getAntigravityRequestModelId,
   getFallbackRuntimeModel,
+  getThinkingConfig,
 } from "../src/models/index.js";
 import {
   buildRequest,
@@ -60,6 +62,13 @@ const assert = {
 const route = (model: string, effort?: string) => getAntigravityRequestModelId(model, effort);
 
 const routeCases: Array<[string, string | undefined, string]> = [
+  ["gemini-4-argon", undefined, "gemini-4-argon-low"],
+  ["gemini-4-argon", "off", "gemini-4-argon-low"],
+  ["gemini-4-argon", "minimal", "gemini-4-argon-low"],
+  ["gemini-4-argon", "low", "gemini-4-argon-low"],
+  ["gemini-4-argon", "medium", "gemini-4-argon-medium"],
+  ["gemini-4-argon", "high", "gemini-4-argon-high"],
+  ["gemini-4-argon", "xhigh", "gemini-4-argon-high"],
   ["gemini-3.8-flash", undefined, "gemini-3.8-flash-low"],
   ["gemini-3.8-flash", "off", "gemini-3.8-flash-low"],
   ["gemini-3.8-flash", "minimal", "gemini-3.8-flash-low"],
@@ -103,6 +112,7 @@ for (const [model, effort, expected] of routeCases) {
 
 const modelIds = new Set(ANTIGRAVITY_MODELS.map((model) => model.id));
 const expectedModels = [
+  "gemini-4-argon",
   "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
@@ -122,6 +132,7 @@ for (const expected of expectedModels) {
 }
 
 const expectedThinkingLevels: Record<string, string[]> = {
+  "gemini-4-argon": ["low", "medium", "high"],
   "gemini-3.8-flash": ["low", "medium", "high"],
   "gemini-3.7-flash": ["low", "medium", "high"],
   "gemini-3.6-flash": ["low", "medium", "high"],
@@ -142,6 +153,24 @@ for (const configuredModel of ANTIGRAVITY_MODELS) {
     `${configuredModel.id} must only expose backend-supported thinking levels`,
   );
 }
+
+assert.equal(getMaxOutputTokens("gemini-4-argon"), 65536);
+assert.equal(getMaxOutputTokens("gemini-4-argon", "gemini-4-argon-low"), 65536);
+assert.equal(getMaxOutputTokens("gemini-4-argon", "gemini-4-argon-medium"), 65536);
+assert.equal(getMaxOutputTokens("gemini-4-argon", "gemini-4-argon-high"), 65536);
+
+assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-argon"], "MODEL_PLACEHOLDER_M417");
+assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-argon-high"], "MODEL_PLACEHOLDER_M417");
+assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-argon-medium"], "MODEL_PLACEHOLDER_M418");
+assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-argon-low"], "MODEL_PLACEHOLDER_M419");
+
+assert.deepEqual(getThinkingConfig("gemini-4-argon", undefined), { includeThoughts: false, thinkingBudget: -1 });
+assert.deepEqual(getThinkingConfig("gemini-4-argon", "off"), { includeThoughts: false, thinkingBudget: -1 });
+assert.deepEqual(getThinkingConfig("gemini-4-argon", "low"), { includeThoughts: true, thinkingBudget: -1 });
+assert.deepEqual(getThinkingConfig("gemini-4-argon", "medium"), { includeThoughts: true, thinkingBudget: -1 });
+assert.deepEqual(getThinkingConfig("gemini-4-argon", "high"), { includeThoughts: true, thinkingBudget: -1 });
+assert.deepEqual(getThinkingConfig("gemini-4-argon-low", "off"), { includeThoughts: false, thinkingBudget: -1 });
+assert.deepEqual(getThinkingConfig("gemini-4-argon-high", "high"), { includeThoughts: true, thinkingBudget: -1 });
 
 const booleanUnionTool = {
   name: "boolean_union",
@@ -1433,7 +1462,7 @@ assert.equal(opusCost?.output, 75);
 // Wire fingerprint: User-Agent format (pure agy CLI)
 assert.equal(
   defaultUserAgent(),
-  "antigravity/cli/1.2.4 (aidev_client; os_type=linux; arch=amd64; cl=982146307; auth_method=consumer)",
+  "antigravity/cli/1.3.6 (aidev_client; os_type=linux; arch=amd64; cl=982146307; auth_method=consumer)",
 );
 
 // Wire fingerprint: Headers hygiene & environment isolation

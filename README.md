@@ -144,11 +144,12 @@ Use `/antigravity.models` to see live availability and quota for your account. R
 
 Antigravity / Cloud Code Assist exposes a multi-provider catalog. Depending on your account, its Google-authenticated API can advertise Google Gemini models alongside Claude models served through Anthropic Vertex and GPT-OSS served through OpenAI Vertex. This extension intentionally exposes those advertised Claude and GPT-OSS models through the single `antigravity` provider; they are not separate Pi providers and do not use a separate Anthropic or OpenAI login.
 
-The backend's display labels do not always match its runtime IDs. For example, `gemini-3.5-flash-extra-low`, `gemini-3.5-flash-low`, and `gemini-3-flash-agent` can be displayed as Gemini 3.5 Flash Low, Medium, and High. All supported models send integer `thinkingBudget` (Gemini 3.8/3.7/3.6: -1/4000/1000/0, Gemini 3.5: 10000/4000/1000/0, Gemini 3.1 Pro: 10001/1001/0, Claude: 1024/0, GPT-OSS: 8192/0) matching the official Antigravity CLI wire format.
+The backend's display labels do not always match its runtime IDs. For example, `gemini-3.5-flash-extra-low`, `gemini-3.5-flash-low`, and `gemini-3-flash-agent` can be displayed as Gemini 3.5 Flash Low, Medium, and High. All supported models send integer `thinkingBudget` (Gemini 4 Argon: -1, Gemini 3.8/3.7/3.6: -1/4000/1000/0, Gemini 3.5: 10000/4000/1000/0, Gemini 3.1 Pro: 10001/1001/0, Claude: 1024/0, GPT-OSS: 8192/0) matching the official Antigravity CLI wire format.
 
 <!-- prettier-ignore -->
 | Public model ID | Input | Thinking levels shown | Max output tokens | Request routing |
 | --- | --- | --- | --- | --- |
+| `gemini-4-argon` | Text, image | Low, Medium, High | 65,536 | low → `gemini-4-argon-low`; medium → `gemini-4-argon-medium`; high → `gemini-4-argon-high` |
 | `gemini-3.8-flash` | Text, image | Low, Medium, High | 65,536 | low → `gemini-3.8-flash-low`; medium → `gemini-3.8-flash-medium`; high → `gemini-3.8-flash-high` |
 | `gemini-3.7-flash` | Text, image | Low, Medium, High | 65,536 | low → `gemini-3.7-flash-low`; medium → `gemini-3.7-flash-medium`; high → `gemini-3.7-flash-high` |
 | `gemini-3.6-flash` | Text, image | Low, Medium, High | 65,536 | low → `gemini-3.6-flash-low`; medium → `gemini-3.6-flash-medium`; high → `gemini-3.6-flash-high` |
@@ -163,6 +164,7 @@ To limit which models Pi cycles through, enable specific entries in `~/.pi/agent
 ```json
 {
   "models": {
+    "antigravity/gemini-4-argon": { "enabled": true },
     "antigravity/gemini-3.8-flash": { "enabled": true },
     "antigravity/gemini-3.7-flash": { "enabled": true },
     "antigravity/gemini-3.6-flash": { "enabled": true },

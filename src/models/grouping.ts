@@ -83,6 +83,7 @@ export function buildAntigravityCatalog(
   for (const [runtimeId, info] of Object.entries(rawModels)) {
     if (!isSelectableRuntimeModelId(runtimeId)) continue;
     if (info?.isInternal) continue;
+    if (info?.disabled === true) continue;
 
     const displayName = modelDisplayName(info);
     if (runtimeId.endsWith("-tiered")) {
@@ -335,6 +336,12 @@ function familyTemplate(
   publicId: string,
   fallbackModels: ProviderModelConfig[],
 ): ProviderModelConfig | undefined {
+  if (/^gemini-.*-argon/i.test(publicId)) {
+    return (
+      fallbackModels.find((model) => /^gemini-.*-argon/i.test(model.id)) ??
+      fallbackModels.find((model) => /^gemini-.*-pro/i.test(model.id))
+    );
+  }
   if (/^gemini-.*-flash/i.test(publicId)) {
     return fallbackModels.find((model) => /^gemini-.*-flash/i.test(model.id));
   }
@@ -413,12 +420,13 @@ function comparePublicModels(a: ProviderModelConfig, b: ProviderModelConfig): nu
 
 function modelRank(id: string): [number, number] {
   const version = parseGeminiVersion(id);
-  if (/^gemini-.*flash/i.test(id) && !/pro/i.test(id)) return [0, -version];
-  if (id.startsWith("claude-opus")) return [1, 0];
-  if (id.startsWith("claude-sonnet")) return [2, 0];
-  if (id.startsWith("claude-")) return [3, 0];
-  if (/^gemini-.*pro/i.test(id)) return [4, -version];
-  if (id.startsWith("gemini-")) return [5, -version];
-  if (id.startsWith("gpt-oss")) return [6, 0];
-  return [7, 0];
+  if (/^gemini-.*argon/i.test(id)) return [0, -version];
+  if (/^gemini-.*flash/i.test(id) && !/pro/i.test(id)) return [1, -version];
+  if (id.startsWith("claude-opus")) return [2, 0];
+  if (id.startsWith("claude-sonnet")) return [3, 0];
+  if (id.startsWith("claude-")) return [4, 0];
+  if (/^gemini-.*pro/i.test(id)) return [5, -version];
+  if (id.startsWith("gemini-")) return [6, -version];
+  if (id.startsWith("gpt-oss")) return [7, 0];
+  return [8, 0];
 }
