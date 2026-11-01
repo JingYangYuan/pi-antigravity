@@ -5,9 +5,18 @@ import {
   parseApiKey,
 } from "../client/client.js";
 import { AntigravityRequestType, AntigravityUserAgent, GeminiRole } from "../types/enums.js";
-import { antigravityFetch } from "../utils/http.js";
+import { antigravityFetch, hasProxyConfiguration, postJsonDirect } from "../utils/http.js";
 import { safeError } from "../utils/security.js";
 import { antigravityRequestEnvelope, isRecord } from "../utils/util.js";
+
+/** Server-side rejection raised when a built-in tool is paired with function calling. */
+const SERVER_SIDE_TOOL_MARKER = /include_server_side_tool_invocations/;
+
+/**
+ * Set once a host fetch interceptor has rejected a search request. Later calls in the
+ * same process go straight to the direct transport instead of repeating the failure.
+ */
+let preferDirectTransport = false;
 
 /** Default search model: fast grounding model for interactive tool calls. */
 export const DEFAULT_SEARCH_MODEL = "gemini-3.5-flash-lite";
@@ -380,12 +389,43 @@ export async function executeAntigravitySearch(options: ExecuteSearchOptions): P
       if (options.signal?.aborted) throw new Error("Search request was aborted");
 
       try {
-        const response = await antigravityFetch(`${endpoint}/v1internal:generateContent`, {
+        const url = `${endpoint}/v1internal:generateContent`;
+        const directAllowed = !hasProxyConfiguration();
+
+        // Once a host interceptor has mangled this call, skip the doomed round trip.
+        let response: Response | undefined =
+          directAllowed && preferDirectTransport
+            ? await postJsonDirect(url, { headers, body, signal: options.signal }).catch(
+                () => undefined,
+              )
+            : undefined;
+        response ??= await antigravityFetch(url, {
           method: "POST",
           headers,
           body,
           signal: options.signal,
         });
+
+        // A host that patches global fetch can rewrite this request beyond recognition
+        // (billion-context rebuilds every /v1internal body for its context carriers), and
+        // Google then rejects the built-in tool over a tool_config complaint even though
+        // our own bytes are valid. Retry over a transport the host cannot intercept.
+        if (response.status === 400 && directAllowed) {
+          const rejection = await response.clone().text();
+          if (SERVER_SIDE_TOOL_MARKER.test(rejection)) {
+            const direct = await postJsonDirect(url, {
+              headers,
+              body,
+              signal: options.signal,
+            });
+            if (direct.ok) {
+              response = direct;
+              // Remember for this process: every later search would otherwise pay the
+              // same rejected round trip before reaching this branch.
+              preferDirectTransport = true;
+            }
+          }
+        }
 
         if (!response.ok) {
           lastError = jsonOrTextError(await response.text()).slice(0, 400);
