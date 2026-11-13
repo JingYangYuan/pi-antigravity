@@ -5,7 +5,7 @@ import {
   parseApiKey,
 } from "../client/client.js";
 import { AntigravityRequestType, AntigravityUserAgent, GeminiRole } from "../types/enums.js";
-import { antigravityFetch, hasProxyConfiguration, postJsonDirect } from "../utils/http.js";
+import { antigravityFetch, postJsonDirect } from "../utils/http.js";
 import { safeError } from "../utils/security.js";
 import { antigravityRequestEnvelope, isRecord } from "../utils/util.js";
 
@@ -390,15 +390,13 @@ export async function executeAntigravitySearch(options: ExecuteSearchOptions): P
 
       try {
         const url = `${endpoint}/v1internal:generateContent`;
-        const directAllowed = !hasProxyConfiguration();
 
         // Once a host interceptor has mangled this call, skip the doomed round trip.
-        let response: Response | undefined =
-          directAllowed && preferDirectTransport
-            ? await postJsonDirect(url, { headers, body, signal: options.signal }).catch(
-                () => undefined,
-              )
-            : undefined;
+        let response: Response | undefined = preferDirectTransport
+          ? await postJsonDirect(url, { headers, body, signal: options.signal }).catch(
+              () => undefined,
+            )
+          : undefined;
         response ??= await antigravityFetch(url, {
           method: "POST",
           headers,
@@ -409,8 +407,9 @@ export async function executeAntigravitySearch(options: ExecuteSearchOptions): P
         // A host that patches global fetch can rewrite this request beyond recognition
         // (billion-context rebuilds every /v1internal body for its context carriers), and
         // Google then rejects the built-in tool over a tool_config complaint even though
-        // our own bytes are valid. Retry over a transport the host cannot intercept.
-        if (response.status === 400 && directAllowed) {
+        // our own bytes are valid. Retry over a transport the host cannot intercept; it
+        // still honours the configured proxy, so this works behind one too.
+        if (response.status === 400) {
           const rejection = await response.clone().text();
           if (SERVER_SIDE_TOOL_MARKER.test(rejection)) {
             const direct = await postJsonDirect(url, {

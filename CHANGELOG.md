@@ -6,7 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
-- **Search behind a patched `fetch`:** Host extensions that intercept model-API URLs (billion-context does) rebuild every `/v1internal:generateContent` body, and Google then answers `Please enable tool_config.include_server_side_tool_invocations to use Built-in tools with Function calling.` even though the request is valid. Search now retries that specific rejection over a direct `node:https` transport instead of the host's `fetch`.
+- **Search behind a patched `fetch`:** Host extensions that intercept model-API URLs (billion-context does) rebuild every `/v1internal:generateContent` body, and Google then answers `Please enable tool_config.include_server_side_tool_invocations to use Built-in tools with Function calling.` even though the request is valid. Search now retries that specific rejection over a direct transport instead of the host's `fetch`.
+- **Search behind a proxy:** That fallback is now proxy-aware — it dispatches through `undici` (reusing pi's `EnvHttpProxyAgent`, so `HTTP(S)_PROXY`, `NO_PROXY` and cert-MITM proxies keep working) instead of raw `node:https`, and it is no longer disabled whenever proxy env vars are set. Previously every proxied setup kept the failure above with no way out.
 - **Test runner on Windows:** `scripts/run-ts.mjs` passes a URL to `--import` instead of a bare path, so `npm test` no longer dies with `ERR_UNSUPPORTED_ESM_URL_SCHEME` on Node 24.
 
 ## [0.10.0] - 2026-10-08

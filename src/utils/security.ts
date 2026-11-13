@@ -40,6 +40,30 @@ export function assertSafeApiBaseUrl(raw: string): string {
   return `${url.origin}${path === "/" ? "" : path}`;
 }
 
+/**
+ * Validate the hub-injected credential-gateway endpoint (ANTIGRAVITY_GATEWAY_URL).
+ * Unlike ANTIGRAVITY_BASE_URL this comes from a trusted orchestrator, not user
+ * config: http is allowed (the gateway terminates TLS itself and sits on a
+ * Docker-local hostname), but credentials in the URL and garbage are still
+ * rejected. Restricting to https would defeat the gateway on private networks.
+ */
+export function assertGatewayBaseUrl(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`Invalid ANTIGRAVITY_GATEWAY_URL: ${raw}`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`ANTIGRAVITY_GATEWAY_URL must use http(s) (got ${url.protocol})`);
+  }
+  if (url.username || url.password) {
+    throw new Error("ANTIGRAVITY_GATEWAY_URL must not include credentials");
+  }
+  const path = url.pathname.replace(/\/+$/, "");
+  return `${url.origin}${path === "/" ? "" : path}`;
+}
+
 /** Redact bearer tokens, refresh tokens, and similar secrets from diagnostics/errors. */
 export function redactSecrets(text: string): string {
   return text

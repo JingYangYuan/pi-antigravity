@@ -9,7 +9,7 @@ import {
   setLastMatchedModelDebug,
   setLastStatus,
 } from "../diagnostics/diagnostics.js";
-import { assertSafeApiBaseUrl, safeError } from "../utils/security.js";
+import { assertGatewayBaseUrl, assertSafeApiBaseUrl, safeError } from "../utils/security.js";
 import type { AntigravityApiKey, AvailableModelsRaw, DynamicModelInfo } from "../types/types.js";
 import { antigravityEnv, asString, escapeRegExp, isRecord } from "../utils/util.js";
 import { antigravityFetch } from "../utils/http.js";
@@ -56,6 +56,11 @@ export function defaultProjectId(seed = "antigravity-default"): string {
 export const DEFAULT_PROJECT_ID = defaultProjectId();
 
 export function endpointCandidates(): string[] {
+  // Hub-injected credential gateway wins: it replaces the real key on the way
+  // out, so the sandbox never holds a usable subscription credential. Only
+  // fall through to googleapis endpoints when the hub did not set it.
+  const gateway = antigravityEnv("GATEWAY_URL")?.trim();
+  if (gateway) return [assertGatewayBaseUrl(gateway)];
   const explicit = antigravityEnv("BASE_URL")?.trim();
   return explicit ? [assertSafeApiBaseUrl(explicit)] : ENDPOINT_FALLBACKS;
 }

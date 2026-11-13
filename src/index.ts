@@ -39,6 +39,7 @@ import {
   resolveApiKeyFromContext,
 } from "./usage/index.js";
 import { redactSecrets, maskEmail } from "./utils/index.js";
+import { applyModelAccess } from "./utils/model-access.js";
 
 /**
  * Pi's interactive `notify` writes into the chat transcript. `console.log` in that
@@ -143,10 +144,14 @@ export default function (pi: ExtensionAPI): void {
     name: PROVIDER_NAME,
     baseUrl: DEFAULT_ENDPOINT,
     api: ANTIGRAVITY_API,
-    models: [...initialCatalog.models, ...ANTIGRAVITY_IMAGE_MODELS],
+    // The hub credential broker may publish a model whitelist
+    // (pihubModelAccess in settings.json / PIHUB_MODEL_ACCESS env). When
+    // present it REPLACES the visible catalog; image models stay exposed
+    // (they are gated by the images feature, not the chat whitelist).
+    models: [...applyModelAccess(initialCatalog.models), ...ANTIGRAVITY_IMAGE_MODELS],
     refreshModels: async (context: Parameters<typeof refreshAntigravityModels>[0]) => {
       const refreshed = await refreshAntigravityModels(context);
-      return [...refreshed, ...ANTIGRAVITY_IMAGE_MODELS];
+      return [...applyModelAccess(refreshed), ...ANTIGRAVITY_IMAGE_MODELS];
     },
     oauth: {
       name: PROVIDER_NAME,
