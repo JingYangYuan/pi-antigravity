@@ -194,9 +194,13 @@ function summarizeModelCandidate(value: unknown): string {
   return JSON.stringify(out).slice(0, 1200);
 }
 
-/** Runtime ids look like gemini-*, claude-*, gpt-oss-*, never MODEL_PLACEHOLDER_* enums. */
+/** Runtime ids look like gemini-*, claude-*, gpt-oss-*, orchestrator-*; never MODEL_PLACEHOLDER_*. */
 export function isUsableRuntimeModelId(id: string): boolean {
-  return /^(gemini-|claude-|gpt-oss-)/i.test(id) && !/\s/.test(id) && !/^MODEL_/i.test(id);
+  return (
+    /^(gemini-|claude-|gpt-oss-|orchestrator)/i.test(id) &&
+    !/\s/.test(id) &&
+    !/^MODEL_/i.test(id)
+  );
 }
 
 function buildModelMatchRegex(requestedId: string): RegExp {
@@ -217,6 +221,18 @@ function buildModelMatchRegex(requestedId: string): RegExp {
   if (req === "gemini-4-argon-low") return /gemini[- ]4[- ]argon \(low\)/i;
   if (req === "gemini-4-argon-medium") return /gemini[- ]4[- ]argon \(medium\)/i;
   if (req === "gemini-4-argon-high") return /gemini[- ]4[- ]argon \(high\)/i;
+  if (req === "gemini-4-hydrogen-low") return /gemini[- ]4[- ]hydrogen \(low\)/i;
+  if (req === "gemini-4-hydrogen-medium") return /gemini[- ]4[- ]hydrogen \(medium\)/i;
+  if (req === "gemini-4-hydrogen-high") return /gemini[- ]4[- ]hydrogen \(high\)/i;
+  if (req === "gemini-4-hydrogen-xhigh")
+    return /gemini[- ]4[- ]hydrogen \((?:x-?\s*high|extra\s*high)\)/i;
+  if (req === "gemini-4-carbon-low") return /gemini[- ]4[- ]carbon \(low\)/i;
+  if (req === "gemini-4-carbon-medium") return /gemini[- ]4[- ]carbon \(medium\)/i;
+  if (req === "gemini-4-carbon-high") return /gemini[- ]4[- ]carbon \(high\)/i;
+  // Orchestrator has no published model id: match the planner named in its display name.
+  if (/^orchestrator[-_ ]?carbon/i.test(req)) return /orchestrator.*carbon/i;
+  if (/^orchestrator[-_ ]?argon/i.test(req)) return /orchestrator.*argon/i;
+  if (/^orchestrator/i.test(req)) return /orchestrator/i;
   if (req === "gemini-3.8-flash-low") return /gemini[- ]3\.8[- ]flash \(low\)/i;
   if (req === "gemini-3.8-flash-medium") return /gemini[- ]3\.8[- ]flash \(medium\)/i;
   if (req === "gemini-3.8-flash-high") return /gemini[- ]3\.8[- ]flash \(high\)/i;

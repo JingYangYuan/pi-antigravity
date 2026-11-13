@@ -62,6 +62,18 @@ const assert = {
 const route = (model: string, effort?: string) => getAntigravityRequestModelId(model, effort);
 
 const routeCases: Array<[string, string | undefined, string]> = [
+  ["gemini-4-hydrogen", undefined, "gemini-4-hydrogen-low"],
+  ["gemini-4-hydrogen", "off", "gemini-4-hydrogen-low"],
+  ["gemini-4-hydrogen", "minimal", "gemini-4-hydrogen-low"],
+  ["gemini-4-hydrogen", "low", "gemini-4-hydrogen-low"],
+  ["gemini-4-hydrogen", "medium", "gemini-4-hydrogen-medium"],
+  ["gemini-4-hydrogen", "high", "gemini-4-hydrogen-high"],
+  ["gemini-4-hydrogen", "xhigh", "gemini-4-hydrogen-xhigh"],
+  ["gemini-4-carbon", undefined, "gemini-4-carbon-low"],
+  ["gemini-4-carbon", "low", "gemini-4-carbon-low"],
+  ["gemini-4-carbon", "medium", "gemini-4-carbon-medium"],
+  ["gemini-4-carbon", "high", "gemini-4-carbon-high"],
+  ["gemini-4-carbon", "xhigh", "gemini-4-carbon-high"],
   ["gemini-4-argon", undefined, "gemini-4-argon-low"],
   ["gemini-4-argon", "off", "gemini-4-argon-low"],
   ["gemini-4-argon", "minimal", "gemini-4-argon-low"],
@@ -112,6 +124,8 @@ for (const [model, effort, expected] of routeCases) {
 
 const modelIds = new Set(ANTIGRAVITY_MODELS.map((model) => model.id));
 const expectedModels = [
+  "gemini-4-hydrogen",
+  "gemini-4-carbon",
   "gemini-4-argon",
   "gemini-3.8-flash",
   "gemini-3.7-flash",
@@ -132,6 +146,8 @@ for (const expected of expectedModels) {
 }
 
 const expectedThinkingLevels: Record<string, string[]> = {
+  "gemini-4-hydrogen": ["low", "medium", "high", "xhigh"],
+  "gemini-4-carbon": ["low", "medium", "high"],
   "gemini-4-argon": ["low", "medium", "high"],
   "gemini-3.8-flash": ["low", "medium", "high"],
   "gemini-3.7-flash": ["low", "medium", "high"],
@@ -154,10 +170,25 @@ for (const configuredModel of ANTIGRAVITY_MODELS) {
   );
 }
 
+assert.equal(getMaxOutputTokens("gemini-4-hydrogen"), 65536);
+assert.equal(getMaxOutputTokens("gemini-4-hydrogen", "gemini-4-hydrogen-xhigh"), 65536);
+assert.equal(getMaxOutputTokens("gemini-4-carbon"), 65535);
+assert.equal(getMaxOutputTokens("gemini-4-carbon", "gemini-4-carbon-high"), 65535);
 assert.equal(getMaxOutputTokens("gemini-4-argon"), 65536);
 assert.equal(getMaxOutputTokens("gemini-4-argon", "gemini-4-argon-low"), 65536);
 assert.equal(getMaxOutputTokens("gemini-4-argon", "gemini-4-argon-medium"), 65536);
 assert.equal(getMaxOutputTokens("gemini-4-argon", "gemini-4-argon-high"), 65536);
+
+assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-hydrogen"], "MODEL_PLACEHOLDER_M527");
+assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-hydrogen-high"], "MODEL_PLACEHOLDER_M525");
+assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-hydrogen-medium"], "MODEL_PLACEHOLDER_M526");
+assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-hydrogen-low"], "MODEL_PLACEHOLDER_M527");
+assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-hydrogen-xhigh"], "MODEL_PLACEHOLDER_M528");
+
+assert.deepEqual(getThinkingConfig("gemini-4-hydrogen", undefined), { includeThoughts: false, thinkingBudget: -1 });
+assert.deepEqual(getThinkingConfig("gemini-4-hydrogen", "xhigh"), { includeThoughts: true, thinkingBudget: -1 });
+assert.deepEqual(getThinkingConfig("gemini-4-hydrogen-xhigh", "xhigh"), { includeThoughts: true, thinkingBudget: -1 });
+assert.deepEqual(getThinkingConfig("gemini-4-carbon", "high"), { includeThoughts: true, thinkingBudget: -1 });
 
 assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-argon"], "MODEL_PLACEHOLDER_M417");
 assert.equal(ANTIGRAVITY_MODEL_ENUM["gemini-4-argon-high"], "MODEL_PLACEHOLDER_M417");

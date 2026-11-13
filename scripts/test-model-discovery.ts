@@ -64,6 +64,61 @@ assert(
   "routes discovered gemini-4-argon thinking variants",
 );
 
+// Gemini 4 Hydrogen / Carbon: `-xhigh` suffix and `(X-High)` display names collapse into
+// one public model each; Orchestrator is a fixed preset with no thinking ladder.
+const codenameCatalog = buildAntigravityCatalog(
+  {
+    "gemini-4-hydrogen-low": info("Gemini 4 Hydrogen (Low)"),
+    "gemini-4-hydrogen-medium": info("Gemini 4 Hydrogen (Medium)"),
+    "gemini-4-hydrogen-high": info("Gemini 4 Hydrogen (High)"),
+    "gemini-4-hydrogen-xhigh": info("Gemini 4 Hydrogen (X-High)"),
+    "gemini-4-carbon-low": info("Gemini 4 Carbon (Low)"),
+    "gemini-4-carbon-medium": info("Gemini 4 Carbon (Medium)"),
+    "gemini-4-carbon-high": info("Gemini 4 Carbon (High)"),
+    "orchestrator-carbon": info("Orchestrator (Carbon)"),
+  },
+  fallback,
+);
+const hydrogen = codenameCatalog.models.find((model) => model.id === "gemini-4-hydrogen");
+assert(hydrogen, "discovers gemini-4-hydrogen");
+assert(hydrogen.name === "Gemini 4 Hydrogen (Antigravity)", "names the hydrogen family");
+assert(hydrogen.thinkingLevelMap?.xhigh === "xhigh", "exposes the hydrogen xhigh level");
+assert(
+  codenameCatalog.routing["gemini-4-hydrogen"]?.routing?.xhigh === "gemini-4-hydrogen-xhigh",
+  "routes hydrogen xhigh to its own tier",
+);
+assert(
+  codenameCatalog.models.some((model) => model.id === "gemini-4-carbon"),
+  "discovers gemini-4-carbon",
+);
+assert(
+  codenameCatalog.routing["gemini-4-carbon"]?.routing?.high === "gemini-4-carbon-high",
+  "routes carbon high to its own tier",
+);
+const orchestrator = codenameCatalog.models.find((model) => model.id === "orchestrator-carbon");
+assert(orchestrator, "discovers an orchestrator runtime id");
+assert(
+  orchestrator.name === "Orchestrator (Carbon) (Antigravity)",
+  "keeps the orchestrator planner in its name",
+);
+assert(
+  codenameCatalog.routing["orchestrator-carbon"]?.routing?.high === "orchestrator-carbon",
+  "orchestrator has no thinking ladder and routes to its own id",
+);
+
+// An unknown family still learns the xhigh tier from the runtime suffix and display name.
+const xhighParsedCatalog = buildAntigravityCatalog(
+  {
+    "gemini-5-nova-low": info("Gemini 5 Nova (Low)"),
+    "gemini-5-nova-xhigh": info("Gemini 5 Nova (X-High)"),
+  },
+  fallback,
+);
+assert(
+  xhighParsedCatalog.routing["gemini-5-nova"]?.routing?.xhigh === "gemini-5-nova-xhigh",
+  "routes a discovered -xhigh variant",
+);
+
 // Multi-endpoint merge: fallback disabled entry must not overwrite enabled entry with quotaInfo
 const multiEndpointMerged = mergeAvailableModelsResults([
   {

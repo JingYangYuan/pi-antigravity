@@ -4,9 +4,9 @@
 [![GitHub stars](https://img.shields.io/github/stars/JingYangYuan/pi-antigravity?style=social)](https://github.com/JingYangYuan/pi-antigravity)
 [![Forked from Rahularya01/pi-antigravity](https://img.shields.io/badge/forked%20from-Rahularya01%2Fpi--antigravity-blue?logo=github)](https://github.com/Rahularya01/pi-antigravity)
 
-**pi-antigravity** is a [Pi Coding Agent](https://pi.dev) provider that lets Pi talk directly to Google Antigravity / Cloud Code Assist models — including **Gemini 4 Argon (`gemini-4-argon`)**, the full Gemini Flash/Pro families, and the Claude & GPT-OSS models served through Antigravity.
+**pi-antigravity** is a [Pi Coding Agent](https://pi.dev) provider that lets Pi talk directly to Google Antigravity / Cloud Code Assist models — including **Gemini 4 Hydrogen (`gemini-4-hydrogen`)**, **Gemini 4 Carbon (`gemini-4-carbon`)**, **Gemini 4 Argon (`gemini-4-argon`)**, the full Gemini Flash/Pro families, and the Claude & GPT-OSS models served through Antigravity.
 
-This fork enhances the upstream extension with official support for **Gemini 4 Argon**, full 3-tier reasoning routing (`Low` / `Medium` / `High`), multi-endpoint priority merging (preventing disabled fallback models from overwriting live quota), and dedicated 3-group shared quota querying in `/antigravity.usage`.
+This fork enhances the upstream extension with official support for **Gemini 4 Hydrogen / Carbon / Argon**, full reasoning routing (`Low` / `Medium` / `High`, plus the new `XHigh` tier on Hydrogen), multi-endpoint priority merging (preventing disabled fallback models from overwriting live quota), and dedicated 3-group shared quota querying in `/antigravity.usage`.
 
 [English](#english) | [中文说明](#中文说明)
 
@@ -18,7 +18,8 @@ This fork enhances the upstream extension with official support for **Gemini 4 A
 
 ### ✨ Key Features
 
-- 🚀 **Gemini 4 Argon Support**: Native integration with Google's latest `gemini-4-argon` (1,048,576 context window, 65,536 max output tokens). Wire-level `thinkingBudget: -1` support with `Low` / `Medium` / `High` reasoning controls.
+- 🚀 **Gemini 4 Hydrogen Support**: `gemini-4-hydrogen` with a 1,048,576 context window, 65,536 max output tokens and four reasoning levels (`Low` / `Medium` / `High` / `XHigh`). Wire-level `thinkingBudget: -1` support, so the tier is carried by the runtime id instead of a numeric budget.
+- 🧭 **Gemini 4 Carbon Support**: `gemini-4-carbon` (Ultra) with `Low` / `Medium` / `High` and a 65,535 output cap.
 - 📊 **3-Group Quota Monitoring**: Live `/antigravity.usage` displays server-reported remaining allowances and reset timers across all 3 pools:
   1. **Gemini Models** (5-hour limit + weekly limit)
   2. **Gemini 4 Argon** (Dedicated weekly limit)
@@ -101,9 +102,11 @@ Restart Pi or execute `/reload` after installing.
 
 When you select a public model ID, `pi-antigravity` dynamically routes requests to the optimal backend runtime variant based on your active thinking effort:
 
-| Public Model ID      | Input Modalities | Thinking Levels   | Context Window | Max Output | Backend Routing                                                                                |
-| :------------------- | :--------------- | :---------------- | :------------- | :--------- | :--------------------------------------------------------------------------------------------- |
-| **`gemini-4-argon`** | Text, Image      | Low, Medium, High | **1,048,576**  | **65,536** | low → `gemini-4-argon-low`<br>medium → `gemini-4-argon-medium`<br>high → `gemini-4-argon-high` |
+| Public Model ID       | Input Modalities | Thinking Levels        | Context Window | Max Output | Backend Routing                                                                                          |
+| :-------------------- | :--------------- | :--------------------- | :------------- | :--------- | :------------------------------------------------------------------------------------------------------- |
+| **`gemini-4-hydrogen`** | Text, Image    | Low, Medium, High, XHigh | **1,048,576** | **65,536** | low → `gemini-4-hydrogen-low`<br>medium → `-medium`<br>high → `-high`<br>xhigh → `-xhigh`            |
+| **`gemini-4-carbon`** | Text, Image      | Low, Medium, High      | **1,048,576**  | **65,535** | low → `gemini-4-carbon-low`<br>medium → `-medium`<br>high → `-high`                                     |
+| **`gemini-4-argon`**  | Text, Image      | Low, Medium, High      | **1,048,576**  | **65,536** | low → `gemini-4-argon-low`<br>medium → `gemini-4-argon-medium`<br>high → `gemini-4-argon-high` |
 | `gemini-3.8-flash`   | Text, Image      | Low, Medium, High | 1,048,576      | 65,536     | low/medium/high variants                                                                       |
 | `gemini-3.7-flash`   | Text, Image      | Low, Medium, High | 1,048,576      | 65,536     | low/medium/high variants                                                                       |
 | `gemini-3.6-flash`   | Text, Image      | Low, Medium, High | 1,048,576      | 65,536     | low/medium/high variants                                                                       |
@@ -118,12 +121,15 @@ To pin preferred models in `~/.pi/agent/settings.json`:
 ```json
 {
   "models": {
+    "antigravity/gemini-4-hydrogen": { "enabled": true },
     "antigravity/gemini-4-argon": { "enabled": true },
     "antigravity/gemini-3.8-flash": { "enabled": true },
     "antigravity/claude-sonnet-4-6": { "enabled": true }
   }
 }
 ```
+
+**Orchestrator** (planner on Carbon or Argon with Hydrogen executing) has no published API model id and a fixed configuration with no thinking levels, so it cannot be pinned in the static table. If the backend ever advertises an `orchestrator-*` runtime id, discovery picks it up automatically and it appears as-is with effort routing disabled.
 
 ---
 
@@ -161,9 +167,10 @@ To pin preferred models in `~/.pi/agent/settings.json`:
 
 本 Fork 重点带来以下核心更新：
 
-1. **Gemini 4 Argon 全面支持**：完整接入代号为 Argon 的全新推理模型 `gemini-4-argon`，拥有高达 1,048,576 Token 上下文与 65,536 最大输出，原生支持 Low / Medium / High 三档思考深度。
-2. **底层 Thinking 协议适配**：适配 Argon 系列特殊的 `thinkingBudget: -1` 协议约束，彻底杜绝标准 Gemini 模型在思维预算为 0 时引发的 `HTTP 400 THINKING_LEVEL_MINIMAL` 报错。
-3. **三大独立配额池监控**：`/antigravity.usage` 实时显示 **Gemini 常规模型（5小时+周度）**、**Gemini 4 Argon（专属周度）** 与 **Claude / GPT 模型（5小时+周度）** 三大配额池的消耗进度与重置倒计时。
+1. **Gemini 4 Hydrogen 全面支持**：完整接入 `gemini-4-hydrogen`，1,048,576 Token 上下文、65,536 最大输出，并支持全新的四档思考深度（Low / Medium / High / XHigh）。
+2. **Gemini 4 Carbon 支持**：接入 `gemini-4-carbon`（Ultra 专属），支持 Low / Medium / High 三档与 65,535 输出上限。
+3. **底层 Thinking 协议适配**：适配 Gemini 4 系列特殊的 `thinkingBudget: -1` 协议约束，彻底杜绝标准 Gemini 模型在思维预算为 0 时引发的 `HTTP 400 THINKING_LEVEL_MINIMAL` 报错。
+4. **三大独立配额池监控**：`/antigravity.usage` 实时显示 **Gemini 常规模型（5小时+周度）**、**Gemini 4 Argon（专属周度）** 与 **Claude / GPT 模型（5小时+周度）** 三大配额池的消耗进度与重置倒计时。
 4. **多端点优先级智能合并**：重构模型探测逻辑（`mergeAvailableModelsResults`），确保主端点 `daily-cloudcode-pa` 的实时配额与可用模型不会被兜底沙箱端点的禁用占位数据所覆盖。
 5. **多账号无缝轮换**：支持关联多个 Google 账号，遭遇单账号周度配额耗尽时可一键切换或自动故障转移。
 
@@ -260,9 +267,11 @@ pi update git:github.com/JingYangYuan/pi-antigravity
 
 ### 🤖 模型与请求路由对应表
 
-| 公开模型 ID          | 输入模态   | 可选思考等级      | 上下文窗口    | 最大输出 Token | 对应后端 Runtime ID                                                                            |
-| :------------------- | :--------- | :---------------- | :------------ | :------------- | :--------------------------------------------------------------------------------------------- |
-| **`gemini-4-argon`** | 文本、图片 | Low, Medium, High | **1,048,576** | **65,536**     | low → `gemini-4-argon-low`<br>medium → `gemini-4-argon-medium`<br>high → `gemini-4-argon-high` |
+| 公开模型 ID           | 输入模态   | 可选思考等级            | 上下文窗口    | 最大输出 Token | 对应后端 Runtime ID                                                                              |
+| :-------------------- | :--------- | :---------------------- | :------------ | :------------- | :----------------------------------------------------------------------------------------------- |
+| **`gemini-4-hydrogen`** | 文本、图片 | Low, Medium, High, XHigh | **1,048,576** | **65,536** | low → `gemini-4-hydrogen-low`<br>medium/high/xhigh 对应 `-medium` / `-high` / `-xhigh`          |
+| **`gemini-4-carbon`** | 文本、图片 | Low, Medium, High       | **1,048,576** | **65,535**     | low → `gemini-4-carbon-low`<br>medium/high 对应 `-medium` / `-high`                             |
+| **`gemini-4-argon`**  | 文本、图片 | Low, Medium, High       | **1,048,576** | **65,536**     | low → `gemini-4-argon-low`<br>medium → `gemini-4-argon-medium`<br>high → `gemini-4-argon-high` |
 | `gemini-3.8-flash`   | 文本、图片 | Low, Medium, High | 1,048,576     | 65,536         | low/medium/high 对应变体                                                                       |
 | `gemini-3.7-flash`   | 文本、图片 | Low, Medium, High | 1,048,576     | 65,536         | low/medium/high 对应变体                                                                       |
 | `gemini-3.6-flash`   | 文本、图片 | Low, Medium, High | 1,048,576     | 65,536         | low/medium/high 对应变体                                                                       |

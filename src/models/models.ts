@@ -10,6 +10,9 @@ export const PROVIDER_NAME = "Antigravity";
  * Public selectable model IDs → backend request model IDs by thinking effort.
  *
  * Catalog mirrors `agy models` (Antigravity CLI), which currently advertises:
+ * - Gemini 4 Hydrogen (Low / Medium / High / Extra High)
+ * - Gemini 4 Carbon (Low / Medium / High)
+ * - Gemini 4 Argon (Low / Medium / High)
  * - Gemini 3.8 Flash (Low / Medium / High)
  * - Gemini 3.7 Flash (Low / Medium / High)
  * - Gemini 3.6 Flash (Low / Medium / High)
@@ -23,6 +26,31 @@ export const PROVIDER_NAME = "Antigravity";
  * advertised by the backend for each model.
  */
 export const ANTIGRAVITY_ROUTING: Record<string, AntigravityRouting> = {
+  "gemini-4-hydrogen": {
+    // agy 1.5.8+: four advertised levels, including the new `xhigh` tier.
+    // Google's own default is High, but `off`/unset stays on the cheapest tier like Argon.
+    off: "gemini-4-hydrogen-low",
+    routing: {
+      minimal: "gemini-4-hydrogen-low",
+      low: "gemini-4-hydrogen-low",
+      medium: "gemini-4-hydrogen-medium",
+      high: "gemini-4-hydrogen-high",
+      xhigh: "gemini-4-hydrogen-xhigh",
+    },
+    defaultRequestId: "gemini-4-hydrogen-low",
+  },
+  "gemini-4-carbon": {
+    // Gemini 4 Carbon (Ultra): fixed low / medium / high ladder, no xhigh tier.
+    off: "gemini-4-carbon-low",
+    routing: {
+      minimal: "gemini-4-carbon-low",
+      low: "gemini-4-carbon-low",
+      medium: "gemini-4-carbon-medium",
+      high: "gemini-4-carbon-high",
+      xhigh: "gemini-4-carbon-high",
+    },
+    defaultRequestId: "gemini-4-carbon-low",
+  },
   "gemini-4-argon": {
     off: "gemini-4-argon-low",
     routing: {
@@ -130,6 +158,15 @@ export const ANTIGRAVITY_ROUTING: Record<string, AntigravityRouting> = {
  * Requesting more than these limits returns a 400 Bad Request from the API.
  */
 export const RUNTIME_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  "gemini-4-hydrogen": 65536,
+  "gemini-4-hydrogen-low": 65536,
+  "gemini-4-hydrogen-medium": 65536,
+  "gemini-4-hydrogen-high": 65536,
+  "gemini-4-hydrogen-xhigh": 65536,
+  "gemini-4-carbon": 65535,
+  "gemini-4-carbon-low": 65535,
+  "gemini-4-carbon-medium": 65535,
+  "gemini-4-carbon-high": 65535,
   "gemini-4-argon": 65536,
   "gemini-4-argon-low": 65536,
   "gemini-4-argon-medium": 65536,
@@ -182,6 +219,12 @@ export function getMaxOutputTokens(modelId: string, runtimeModel?: string): numb
 
 const geminiFlashCost = { input: 0.1, output: 0.4, cacheRead: 0.025, cacheWrite: 0.1 };
 const geminiProCost = { input: 1.25, output: 5.0, cacheRead: 0.3125, cacheWrite: 1.25 };
+// Gemini 4 Hydrogen: $1.50 / $7.50 per 1M, cached input $0.075. No separate cache-write
+// rate is published, so the input rate stands in.
+const gemini4HydrogenCost = { input: 1.5, output: 7.5, cacheRead: 0.075, cacheWrite: 1.5 };
+// Gemini 4 Carbon: introductory $2 / $10 (cached $0.10) through 2026-11-30, then
+// $4 / $20 (cached $0.20). The static table carries the introductory rate.
+const gemini4CarbonCost = { input: 2.0, output: 10.0, cacheRead: 0.1, cacheWrite: 2.0 };
 const claudeSonnetCost = { input: 3.0, output: 15.0, cacheRead: 0.3, cacheWrite: 3.75 };
 const claudeOpusCost = { input: 15.0, output: 75.0, cacheRead: 1.5, cacheWrite: 18.75 };
 const gptOssCost = { input: 0.6, output: 2.4, cacheRead: 0.15, cacheWrite: 0.6 };
@@ -216,6 +259,15 @@ const thinkingLevelMaps = {
     xhigh: null,
     max: null,
   },
+  lowMediumHighXhigh: {
+    off: null,
+    minimal: null,
+    low: "low",
+    medium: "medium",
+    high: "high",
+    xhigh: "xhigh",
+    max: null,
+  },
   medium: {
     off: null,
     minimal: null,
@@ -229,6 +281,26 @@ const thinkingLevelMaps = {
 
 /** Same set as `agy models`, collapsed to public Pi model IDs. */
 export const ANTIGRAVITY_MODELS: ProviderModelConfig[] = [
+  {
+    id: "gemini-4-hydrogen",
+    name: "Gemini 4 Hydrogen (Antigravity)",
+    reasoning: true,
+    thinkingLevelMap: thinkingLevelMaps.lowMediumHighXhigh,
+    input: ["text", "image"],
+    cost: gemini4HydrogenCost,
+    contextWindow: 1048576,
+    maxTokens: 65536,
+  },
+  {
+    id: "gemini-4-carbon",
+    name: "Gemini 4 Carbon (Antigravity)",
+    reasoning: true,
+    thinkingLevelMap: thinkingLevelMaps.lowMediumHigh,
+    input: ["text", "image"],
+    cost: gemini4CarbonCost,
+    contextWindow: 1048576,
+    maxTokens: 65535,
+  },
   {
     id: "gemini-4-argon",
     name: "Gemini 4 Argon (Antigravity)",
@@ -404,6 +476,12 @@ export function getFallbackRuntimeModel(runtimeModel: string, effort?: string): 
 export type { ThinkingWire };
 
 export const ANTIGRAVITY_MODEL_ENUM: Record<string, string> = {
+  // Gemini 4 Hydrogen
+  "gemini-4-hydrogen": "MODEL_PLACEHOLDER_M527",
+  "gemini-4-hydrogen-xhigh": "MODEL_PLACEHOLDER_M528",
+  "gemini-4-hydrogen-high": "MODEL_PLACEHOLDER_M525",
+  "gemini-4-hydrogen-medium": "MODEL_PLACEHOLDER_M526",
+  "gemini-4-hydrogen-low": "MODEL_PLACEHOLDER_M527",
   // Gemini 4 Argon
   "gemini-4-argon": "MODEL_PLACEHOLDER_M417",
   "gemini-4-argon-high": "MODEL_PLACEHOLDER_M417",
@@ -507,7 +585,9 @@ export function getThinkingConfig(
     if (!effort || effort === "off") return { includeThoughts: false, thinkingBudget: 0 };
     return { includeThoughts: true, thinkingBudget: 8192 };
   }
-  if (modelId.startsWith("gemini-4-argon") || /^gemini-\d+(?:\.\d+)?-argon/i.test(modelId)) {
+  // Gemini 4 codenames (Argon / Hydrogen / Carbon) encode the tier in the runtime id, so
+  // the wire budget is left dynamic (`-1`) instead of a per-effort number.
+  if (/^gemini-\d+(?:\.\d+)?-(?:argon|hydrogen|carbon)/i.test(modelId)) {
     if (!effort || effort === "off") return { includeThoughts: false, thinkingBudget: -1 };
     return { includeThoughts: true, thinkingBudget: -1 };
   }

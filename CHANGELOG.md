@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Gemini 4 Hydrogen:** `gemini-4-hydrogen` with `Low` / `Medium` / `High` / `XHigh` thinking levels, 1,048,576 context, a 65,536 output cap and `MODEL_PLACEHOLDER_M525`–`M528` labels. `XHigh` is a new tier: runtime ids now understand the `-xhigh` suffix and `(X-High)` / `(XHigh)` display names, and `thinkingLevelMap` exposes it.
+- **Gemini 4 Carbon:** `gemini-4-carbon` with `Low` / `Medium` / `High`, a 65,535 output cap and the published $2 / $10 per 1M rate (introductory, cached input $0.10).
+- **Orchestrator passthrough:** discovery no longer filters `orchestrator-*` runtime ids, and the display-name matcher resolves `Orchestrator (Carbon)` / `Orchestrator (Argon)`. Google publishes no Orchestrator model id, so it stays discovery-only with effort routing disabled.
+
 ### Fixed
 
 - **Search behind a patched `fetch`:** Host extensions that intercept model-API URLs (billion-context does) rebuild every `/v1internal:generateContent` body, and Google then answers `Please enable tool_config.include_server_side_tool_invocations to use Built-in tools with Function calling.` even though the request is valid. Search now retries that specific rejection over a direct transport instead of the host's `fetch`.

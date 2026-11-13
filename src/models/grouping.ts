@@ -22,6 +22,7 @@ type RuntimeGroup = {
 const THINKING_SUFFIXES: Array<{ suffix: string; level: ThinkingLevel }> = [
   { suffix: "extra-low", level: ThinkingEffort.Low },
   { suffix: "extra-high", level: ThinkingEffort.Xhigh },
+  { suffix: "xhigh", level: ThinkingEffort.Xhigh },
   { suffix: "thinking", level: ThinkingEffort.High },
   { suffix: "minimal", level: ThinkingEffort.Minimal },
   { suffix: "medium", level: ThinkingEffort.Medium },
@@ -32,6 +33,8 @@ const THINKING_SUFFIXES: Array<{ suffix: string; level: ThinkingLevel }> = [
 const DISPLAY_LEVELS: Array<{ pattern: RegExp; level: ThinkingLevel }> = [
   { pattern: /\(\s*extra\s*low\s*\)/i, level: ThinkingEffort.Low },
   { pattern: /\(\s*extra\s*high\s*\)/i, level: ThinkingEffort.Xhigh },
+  // agy advertises the new Gemini 4 Hydrogen tier as `(X-High)` / `(XHigh)`.
+  { pattern: /\(\s*x-?\s*high\s*\)/i, level: ThinkingEffort.Xhigh },
   { pattern: /\(\s*thinking\s*\)/i, level: ThinkingEffort.High },
   { pattern: /\(\s*minimal\s*\)/i, level: ThinkingEffort.Minimal },
   { pattern: /\(\s*medium\s*\)/i, level: ThinkingEffort.Medium },
@@ -58,7 +61,13 @@ const PI_LEVELS = [
 const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
 export function isSelectableRuntimeModelId(id: string): boolean {
-  if (!/^(gemini-|claude-|gpt-oss-)/i.test(id) || /\s/.test(id) || /^MODEL_/i.test(id)) {
+  // `orchestrator-*` ids are accepted so a backend that finally advertises
+  // Orchestrator (Carbon/Argon) as a runtime id is not filtered out.
+  if (
+    !/^(gemini-|claude-|gpt-oss-|orchestrator)/i.test(id) ||
+    /\s/.test(id) ||
+    /^MODEL_/i.test(id)
+  ) {
     return false;
   }
   if (/^(chat_|tab_)/i.test(id)) return false;
@@ -215,8 +224,11 @@ function modelDisplayName(info: ModelInfoRaw | undefined): string | undefined {
 
 function displayFamily(displayName: string | undefined): string | undefined {
   if (!displayName) return undefined;
+  // Orchestrator is a fixed-composition preset (planner + Hydrogen executor): the
+  // parenthetical names the planner, not a thinking level, so it stays in the name.
+  if (/^orchestrator\b/i.test(displayName)) return displayName.trim().toLowerCase();
   return displayName
-    .replace(/\s*\((?:extra\s*low|extra\s*high|low|medium|high|minimal|thinking)\)\s*$/i, "")
+    .replace(/\s*\((?:extra\s*low|extra\s*high|x-?\s*high|low|medium|high|minimal|thinking)\)\s*$/i, "")
     .trim()
     .toLowerCase();
 }
@@ -420,7 +432,9 @@ function comparePublicModels(a: ProviderModelConfig, b: ProviderModelConfig): nu
 
 function modelRank(id: string): [number, number] {
   const version = parseGeminiVersion(id);
-  if (/^gemini-.*argon/i.test(id)) return [0, -version];
+  // Gemini 4 codenames: Argon / Carbon / Hydrogen share the top shelf, ordered by id.
+  if (/^gemini-.*(?:argon|carbon|hydrogen)/i.test(id)) return [0, -version];
+  if (/^orchestrator/i.test(id)) return [0, 0];
   if (/^gemini-.*flash/i.test(id) && !/pro/i.test(id)) return [1, -version];
   if (id.startsWith("claude-opus")) return [2, 0];
   if (id.startsWith("claude-sonnet")) return [3, 0];
