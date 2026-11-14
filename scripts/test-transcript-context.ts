@@ -73,6 +73,13 @@ function systemText(request: ReturnType<typeof buildRequest>): string {
   return (request.request.systemInstruction?.parts ?? []).map((part) => part.text).join("\n");
 }
 
+function userText(request: ReturnType<typeof buildRequest>): string {
+  return (request.request.contents ?? [])
+    .filter((turn) => turn.role === "user")
+    .map((turn) => turn.parts.map((part) => ("text" in part ? part.text : "")).join(""))
+    .join("\n");
+}
+
 const transcriptContext = {
   messages: [
     {
@@ -94,12 +101,13 @@ assert.ok(transcriptReq.request.tools, "request.tools must not be undefined");
 assert.deepEqual(declarations(transcriptReq), ["bash", "edit"]);
 assert.ok(/^You are Antigravity/.test(systemText(transcriptReq)), "persona leads the systemInstruction");
 assert.ok(
-  systemText(transcriptReq).includes("# Host instructions\nYou are an expert developer."),
-  "the transcript system prompt is kept as the host section",
+  !systemText(transcriptReq).includes("You are an expert developer."),
+  "the host agent prompt is never mixed into systemInstruction",
 );
-assert.ok(
-  !systemText(transcriptReq).includes(ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION),
-  "the no-host fallback directive is not used when a host prompt exists",
+assert.equal(
+  userText(transcriptReq),
+  "# Host instructions\nYou are an expert developer." + "Please edit index.ts",
+  "the transcript system prompt travels in the user turn",
 );
 assert.ok(
   !(transcriptReq.request.contents ?? []).some((turn) => turn.role === ("system" as never)),
@@ -120,9 +128,10 @@ const legacyContext: Context = {
 const legacyReq = buildRequest(testModel, legacyContext, "test-project", {}, "gemini-3.8-flash");
 assert.deepEqual(declarations(legacyReq), ["bash"]);
 assert.ok(
-  systemText(legacyReq).includes("# Host instructions\nYou are a legacy assistant."),
-  "legacy flat systemPrompt is kept as the host section",
+  userText(legacyReq).includes("# Host instructions\nYou are a legacy assistant."),
+  "legacy flat systemPrompt travels in the user turn",
 );
+assert.ok(!systemText(legacyReq).includes("You are a legacy assistant."));
 
 const sectionContext = {
   messages: [
@@ -138,8 +147,9 @@ const sectionContext = {
   ],
 } as unknown as Context;
 const sectionReq = buildRequest(testModel, sectionContext, "test-project", {}, "gemini-3.8-flash");
-assert.ok(systemText(sectionReq).includes("You are a helpful coding assistant."));
-assert.ok(systemText(sectionReq).includes("Follow all coding conventions."));
+assert.ok(userText(sectionReq).includes("You are a helpful coding assistant."));
+assert.ok(userText(sectionReq).includes("Follow all coding conventions."));
+assert.ok(!systemText(sectionReq).includes("You are a helpful coding assistant."));
 assert.deepEqual(declarations(sectionReq), ["bash"]);
 
 const multiTurnContext = {
@@ -177,7 +187,7 @@ const multiTurnContext = {
 } as unknown as Context;
 const dynamicReq = buildRequest(testModel, multiTurnContext, "test-project", {}, "gemini-3.8-flash");
 assert.deepEqual(declarations(dynamicReq), ["edit"]);
-assert.ok(systemText(dynamicReq).includes("Updated system prompt"));
+assert.ok(userText(dynamicReq).includes("Updated system prompt"));
 
 const noToolsContext = {
   messages: [

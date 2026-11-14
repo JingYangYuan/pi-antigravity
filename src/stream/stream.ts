@@ -76,7 +76,7 @@ import {
   sanitizeText,
 } from "../utils/util.js";
 import { antigravityFetch, prewarmConnection } from "../utils/http.js";
-import { resolveSystemPromptParts } from "./system-prompt.js";
+import { planSystemInstruction } from "./system-prompt.js";
 
 export { ANTIGRAVITY_API };
 
@@ -883,11 +883,21 @@ export function buildRequest(
   );
   const systemPromptText = resolveCurrentSystemPrompt(context);
   const declaredTools = resolveCurrentTools(context);
-  const systemParts = resolveSystemPromptParts(systemPromptText, injectedSkills).map((text) => ({
-    text: sanitizeText(text),
-  }));
+  const promptPlan = planSystemInstruction(systemPromptText, injectedSkills);
+  const systemParts = promptPlan.systemParts.map((text) => ({ text: sanitizeText(text) }));
 
   const contents = convertMessages(model, context, runtimeModel);
+  // persona-only mode: the host prompt travels as a leading user-turn block instead of
+  // being mixed into systemInstruction, which stays the provider's own persona.
+  if (promptPlan.hostInstruction) {
+    const hostPart = { text: sanitizeText(promptPlan.hostInstruction) };
+    const target = contents.find(
+      (turn) => turn.role === GeminiRole.User && turn.parts.some((part) => "text" in part),
+    );
+    if (target) target.parts.unshift(hostPart);
+    else contents.unshift({ role: GeminiRole.User, parts: [hostPart] });
+  }
+
   const hasUserText = contents.some(
     (turn) =>
       turn.role === GeminiRole.User &&

@@ -4,7 +4,7 @@ import {
   ANTIGRAVITY_PERSONA,
   HOST_INSTRUCTIONS_HEADER,
   personaInstruction,
-  resolveSystemPromptParts,
+  planSystemInstruction,
   systemPromptMode,
 } from "../src/stream/system-prompt.js";
 
@@ -28,76 +28,108 @@ function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T): T {
   }
 }
 
+const CLEAN = {
+  ANTIGRAVITY_SYSTEM_PROMPT: undefined,
+  ANTIGRAVITY_SYSTEM_PROMPT_MODE: undefined,
+  NOAGY_SYSTEM_PROMPT: undefined,
+  NOAGY_SYSTEM_PROMPT_MODE: undefined,
+};
+
 // Persona identity comes from the Antigravity CLI's own wording.
 assert.match(ANTIGRAVITY_PERSONA, /^You are Antigravity, a powerful agentic AI coding assistant/);
 assert.match(ANTIGRAVITY_PERSONA, /Google DeepMind/);
 
-// ---------------------------------------------------------------- default mode
+// ------------------------------------------------------- default: persona-only
 assert.equal(
-  withEnv({ ANTIGRAVITY_SYSTEM_PROMPT_MODE: undefined }, systemPromptMode),
-  "append",
-  "default mode appends the host prompt after the persona",
+  withEnv(CLEAN, systemPromptMode),
+  "persona-only",
+  "no host agent prompt may be mixed into systemInstruction by default",
 );
 
-const appendParts = withEnv({ ANTIGRAVITY_SYSTEM_PROMPT_MODE: undefined }, () =>
-  resolveSystemPromptParts(HOST, ["<skill>alpha</skill>"]),
+const personaOnly = withEnv(CLEAN, () =>
+  planSystemInstruction(HOST, ["<skill>alpha</skill>"]),
 );
-assert.equal(appendParts.length, 3);
-assert.equal(appendParts[0], ANTIGRAVITY_PERSONA, "persona is first");
-assert.ok(appendParts[1]!.startsWith(HOST_INSTRUCTIONS_HEADER), "host prompt is a labelled section");
-assert.ok(appendParts[1]!.endsWith(HOST));
-assert.equal(appendParts[2], "<skill>alpha</skill>");
+assert.deepEqual(
+  personaOnly.systemParts,
+  [ANTIGRAVITY_PERSONA, "<skill>alpha</skill>"],
+  "systemInstruction carries only the persona plus injected task context",
+);
+for (const part of personaOnly.systemParts) {
+  assert.ok(!part.includes("coding assistant running inside pi"), "host prompt stays out of it");
+}
+assert.equal(
+  personaOnly.hostInstruction,
+  `${HOST_INSTRUCTIONS_HEADER}\n${HOST}`,
+  "host prompt moves to the conversation",
+);
 
-// No host prompt: persona plus the no-preamble directive, as before.
-const noHostParts = withEnv({ ANTIGRAVITY_SYSTEM_PROMPT_MODE: undefined }, () =>
-  resolveSystemPromptParts("   ", []),
-);
-assert.deepEqual(noHostParts, [ANTIGRAVITY_PERSONA, ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION]);
+// No host prompt: persona plus the no-preamble directive, and no host block.
+const personaOnlyNoHost = withEnv(CLEAN, () => planSystemInstruction("   ", []));
+assert.deepEqual(personaOnlyNoHost.systemParts, [
+  ANTIGRAVITY_PERSONA,
+  ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION,
+]);
+assert.equal(personaOnlyNoHost.hostInstruction, undefined);
 
 // ------------------------------------------------------------ custom persona
-const customParts = withEnv(
-  { ANTIGRAVITY_SYSTEM_PROMPT: "  You are a custom antigravity agent.  ", ANTIGRAVITY_SYSTEM_PROMPT_MODE: undefined },
-  () => {
-    assert.equal(personaInstruction(), "You are a custom antigravity agent.");
-    return resolveSystemPromptParts(HOST, []);
-  },
-);
-assert.equal(customParts[0], "You are a custom antigravity agent.");
-assert.ok(customParts[1]!.startsWith(HOST_INSTRUCTIONS_HEADER));
+const custom = withEnv({ ...CLEAN, ANTIGRAVITY_SYSTEM_PROMPT: "  You are a custom antigravity agent.  " }, () => {
+  assert.equal(personaInstruction(), "You are a custom antigravity agent.");
+  return planSystemInstruction(HOST, []);
+});
+assert.deepEqual(custom.systemParts, ["You are a custom antigravity agent."]);
+assert.equal(custom.hostInstruction, `${HOST_INSTRUCTIONS_HEADER}\n${HOST}`);
 
 // Blank override is ignored rather than sending an empty instruction part.
-withEnv({ ANTIGRAVITY_SYSTEM_PROMPT: "   " }, () => {
+withEnv({ ...CLEAN, ANTIGRAVITY_SYSTEM_PROMPT: "   " }, () => {
   assert.equal(personaInstruction(), ANTIGRAVITY_PERSONA);
 });
 
-// -------------------------------------------------------------- rollback mode
-const legacyParts = withEnv({ ANTIGRAVITY_SYSTEM_PROMPT_MODE: "host-only" }, () =>
-  resolveSystemPromptParts(HOST, []),
+// --------------------------------------------------------- opt-in: append mode
+const append = withEnv({ ...CLEAN, ANTIGRAVITY_SYSTEM_PROMPT_MODE: "append" }, () =>
+  planSystemInstruction(HOST, []),
 );
-assert.deepEqual(legacyParts, [HOST], "host-only restores the previous single-part behavior");
-const legacyEmptyParts = withEnv({ ANTIGRAVITY_SYSTEM_PROMPT_MODE: "host-only" }, () =>
-  resolveSystemPromptParts(undefined, []),
-);
-assert.deepEqual(legacyEmptyParts, [ANTIGRAVITY_PERSONA, ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION]);
+assert.deepEqual(append.systemParts, [
+  ANTIGRAVITY_PERSONA,
+  `${HOST_INSTRUCTIONS_HEADER}\n${HOST}`,
+]);
+assert.equal(append.hostInstruction, undefined, "append mode keeps everything in systemInstruction");
 
-// Unknown mode values fall back to append instead of disabling the persona.
-const unknownModeParts = withEnv({ ANTIGRAVITY_SYSTEM_PROMPT_MODE: "bogus" }, () =>
-  resolveSystemPromptParts(HOST, []),
+const appendNoHost = withEnv({ ...CLEAN, ANTIGRAVITY_SYSTEM_PROMPT_MODE: "append" }, () =>
+  planSystemInstruction("", []),
 );
-assert.equal(unknownModeParts[0], ANTIGRAVITY_PERSONA);
+assert.deepEqual(appendNoHost.systemParts, [ANTIGRAVITY_PERSONA, ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION]);
 
-// Legacy NOAGY_ prefix keeps working for both knobs.
-const legacyPrefixParts = withEnv(
-  { NOAGY_SYSTEM_PROMPT_MODE: "host-only", ANTIGRAVITY_SYSTEM_PROMPT_MODE: undefined },
-  () => resolveSystemPromptParts(HOST, []),
+// ----------------------------------------------------- opt-in: legacy rollback
+const legacy = withEnv({ ...CLEAN, ANTIGRAVITY_SYSTEM_PROMPT_MODE: "host-only" }, () =>
+  planSystemInstruction(HOST, []),
 );
-assert.deepEqual(legacyPrefixParts, [HOST]);
+assert.deepEqual(legacy.systemParts, [HOST], "host-only restores the previous behavior");
+assert.equal(legacy.hostInstruction, undefined);
+const legacyEmpty = withEnv({ ...CLEAN, ANTIGRAVITY_SYSTEM_PROMPT_MODE: "host-only" }, () =>
+  planSystemInstruction(undefined, []),
+);
+assert.deepEqual(legacyEmpty.systemParts, [ANTIGRAVITY_PERSONA, ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION]);
+
+// Unknown mode values fall back to persona-only instead of leaking the host prompt in.
+const unknownMode = withEnv({ ...CLEAN, ANTIGRAVITY_SYSTEM_PROMPT_MODE: "bogus" }, () =>
+  planSystemInstruction(HOST, []),
+);
+assert.deepEqual(unknownMode.systemParts, [ANTIGRAVITY_PERSONA]);
+assert.ok(unknownMode.hostInstruction);
+
+// Legacy NOAGY_ prefix keeps working.
+const legacyPrefix = withEnv(
+  { ...CLEAN, NOAGY_SYSTEM_PROMPT_MODE: "append" },
+  () => planSystemInstruction(HOST, []),
+);
+assert.equal(legacyPrefix.systemParts.length, 2);
 
 // ------------------------------------------------------ no blocked instruction
 const allParts = [
-  ...resolveSystemPromptParts(HOST, []),
-  ...resolveSystemPromptParts(undefined, []),
-  ...legacyParts,
+  ...personaOnly.systemParts,
+  ...append.systemParts,
+  ...legacy.systemParts,
+  ...planSystemInstruction(undefined, []).systemParts,
 ];
 for (const part of allParts) {
   assert.ok(

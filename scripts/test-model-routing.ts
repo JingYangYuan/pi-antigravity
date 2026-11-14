@@ -1420,16 +1420,22 @@ const withPiPrompt = buildRequest(
   {},
   "gemini-3.7-flash-low",
 );
-assert.equal(withPiPrompt.request.systemInstruction.parts.length, 2);
+// persona-only (default): systemInstruction is the provider persona alone, and the
+// host agent prompt travels as a leading user-turn block.
+assert.equal(withPiPrompt.request.systemInstruction.parts.length, 1);
 assert.match(
   String(withPiPrompt.request.systemInstruction.parts[0]?.text),
   /^You are Antigravity, a powerful agentic AI coding assistant/,
-  "the Antigravity persona leads the systemInstruction",
+);
+assert.ok(
+  !String(withPiPrompt.request.systemInstruction.parts[0]?.text).includes("You are Pi."),
+  "no host agent prompt inside systemInstruction",
 );
 assert.equal(
-  withPiPrompt.request.systemInstruction.parts[1]?.text,
+  withPiPrompt.request.contents[0]?.parts[0]?.text,
   "# Host instructions\nYou are Pi. Follow AGENTS.md.",
 );
+assert.equal(withPiPrompt.request.contents[0]?.parts[1]?.text, "hi");
 
 // Skill-only turns are injected instructions, not user prompts. The request remains
 // valid without inventing a user message, and the Skill is preserved as system context.
@@ -1468,14 +1474,16 @@ const systemOnlyRequest = buildRequest(
   {},
   "gemini-3.7-flash-low",
 );
-assert.equal(systemOnlyRequest.request.contents[0]?.parts[0]?.text, "Apply the active system instructions.");
+assert.equal(systemOnlyRequest.request.contents.length, 1);
+assert.equal(systemOnlyRequest.request.contents[0]?.role, "user");
+assert.equal(
+  systemOnlyRequest.request.contents[0]?.parts[0]?.text,
+  "# Host instructions\nFollow the repository conventions.",
+);
+assert.equal(systemOnlyRequest.request.systemInstruction.parts.length, 1);
 assert.match(
   String(systemOnlyRequest.request.systemInstruction.parts[0]?.text),
   /^You are Antigravity, a powerful agentic AI coding assistant/,
-);
-assert.equal(
-  systemOnlyRequest.request.systemInstruction.parts[1]?.text,
-  "# Host instructions\nFollow the repository conventions.",
 );
 
 const skillAndUserContext = {

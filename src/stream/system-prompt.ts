@@ -5,11 +5,9 @@ import { antigravityEnv } from "../utils/util.js";
  * (`You are Antigravity, a powerful agentic AI coding assistant designed by the
  * Google DeepMind team, working on Advanced Agentic Coding.`).
  *
- * The request's `systemInstruction` starts with this fixed text so the provider
- * identity is never erased by the host prompt. Override it with
- * `ANTIGRAVITY_SYSTEM_PROMPT` (or the legacy `NOAGY_SYSTEM_PROMPT`) — the text is
- * a static constant on purpose: it is not randomized, rewritten, or otherwise
- * mutated per request.
+ * Override the text with `ANTIGRAVITY_SYSTEM_PROMPT` (or the legacy
+ * `NOAGY_SYSTEM_PROMPT`). It is a static constant on purpose: it is never
+ * randomized, rewritten, or otherwise mutated per request.
  */
 export const ANTIGRAVITY_PERSONA = [
   "You are Antigravity, a powerful agentic AI coding assistant designed by the Google DeepMind team, working on Advanced Agentic Coding.",
@@ -19,21 +17,25 @@ export const ANTIGRAVITY_PERSONA = [
 export const ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION =
   'CRITICAL: NEVER output rule checks, formatting guidelines, constraint checklists (e.g. "No emdashes"), or your thinking/personality preambles in the final response. Output only the final response.';
 
-/** Separator used when the host prompt is appended after the persona. */
+/** Labelled section that carries the host agent's instructions. */
 export const HOST_INSTRUCTIONS_HEADER = "# Host instructions";
 
-export type SystemPromptMode = "append" | "host-only";
-
 /**
- * How the `systemInstruction` is composed, from `ANTIGRAVITY_SYSTEM_PROMPT_MODE`:
- * - `append` (default): Antigravity persona first, then the host prompt.
- * - `host-only`: the pre-0.11.1 behavior (host prompt replaces the persona),
- *   kept as a rollback switch. Unknown values fall back to `append`.
+ * How the request carries the host prompt, from `ANTIGRAVITY_SYSTEM_PROMPT_MODE`:
+ * - `persona-only` (default): `systemInstruction` is the Antigravity persona only;
+ *   the host prompt travels in the conversation as a leading user-turn block, so no
+ *   host agent prompt is ever mixed into the provider's system instruction.
+ * - `append`: persona first, then the host prompt inside `systemInstruction`.
+ * - `host-only`: the pre-0.11.1 behaviour (host prompt replaces the persona).
+ * Unknown values fall back to `persona-only`.
  */
+export type SystemPromptMode = "persona-only" | "append" | "host-only";
+
 export function systemPromptMode(): SystemPromptMode {
-  return antigravityEnv("SYSTEM_PROMPT_MODE")?.trim().toLowerCase() === "host-only"
-    ? "host-only"
-    : "append";
+  const raw = antigravityEnv("SYSTEM_PROMPT_MODE")?.trim().toLowerCase();
+  if (raw === "append") return "append";
+  if (raw === "host-only") return "host-only";
+  return "persona-only";
 }
 
 /** Custom persona text from `ANTIGRAVITY_SYSTEM_PROMPT`, else the built-in constant. */
@@ -42,29 +44,49 @@ export function personaInstruction(): string {
   return custom || ANTIGRAVITY_PERSONA;
 }
 
+export type SystemInstructionPlan = {
+  /** Parts for `systemInstruction`. Callers must `sanitizeText` each part. */
+  systemParts: string[];
+  /** Host prompt to place in the conversation (persona-only mode), already labelled. */
+  hostInstruction?: string;
+};
+
 /**
- * Build the ordered `systemInstruction` parts: persona (unless `host-only`), the
- * host prompt as a labelled section, then any skill blocks the host injected.
- * Callers are responsible for `sanitizeText` on each returned part.
+ * Decide what goes into `systemInstruction` and what goes into the conversation.
+ *
+ * Skill blocks stay in `systemInstruction` in every mode: they are task context the
+ * host injected, not the host agent's own system prompt.
  */
-export function resolveSystemPromptParts(
+export function planSystemInstruction(
   hostPrompt: string | undefined,
   skillTexts: readonly string[] = [],
-): string[] {
+): SystemInstructionPlan {
   const host = (hostPrompt ?? "").trim();
   const persona = personaInstruction();
-  const parts: string[] = [];
+  const mode = systemPromptMode();
+  const systemParts: string[] = [];
+  let hostInstruction: string | undefined;
 
-  if (systemPromptMode() === "host-only" && host) {
-    parts.push(host);
+  if (mode === "host-only" && host) {
+    // Legacy: the host prompt replaces the persona entirely.
+    systemParts.push(host);
   } else {
-    parts.push(persona);
-    parts.push(host ? `${HOST_INSTRUCTIONS_HEADER}\n${host}` : ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION);
+    systemParts.push(persona);
+    if (mode === "append" && host) {
+      systemParts.push(`${HOST_INSTRUCTIONS_HEADER}\n${host}`);
+    } else if (mode === "append" || mode === "host-only") {
+      systemParts.push(ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION);
+    } else if (host) {
+      // persona-only: the host prompt leaves systemInstruction for the user turn.
+      hostInstruction = `${HOST_INSTRUCTIONS_HEADER}\n${host}`;
+    } else {
+      systemParts.push(ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION);
+    }
   }
 
   for (const skill of skillTexts) {
     const text = (skill ?? "").trim();
-    if (text) parts.push(text);
+    if (text) systemParts.push(text);
   }
-  return parts;
+  return { systemParts, hostInstruction };
 }
