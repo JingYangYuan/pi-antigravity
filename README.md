@@ -136,15 +136,26 @@ To pin preferred models in `~/.pi/agent/settings.json`:
 
 ### Configuration (Environment Variables)
 
-| Variable                     | Description                                                                                  |
-| :--------------------------- | :------------------------------------------------------------------------------------------- |
-| `ANTIGRAVITY_BASE_URL`       | Override the default API base URL (defaults to `https://daily-cloudcode-pa.googleapis.com`). |
-| `ANTIGRAVITY_PROJECT_ID`     | Override Google Cloud project ID discovery.                                                  |
-| `ANTIGRAVITY_USER_AGENT`     | Custom User-Agent (defaults to CLI 1.5.8 fingerprint, cl=1020628950).                        |
-| `ANTIGRAVITY_CLI_CREDS_PATH` | Override the path to local agy credentials file (defaults to `~/.gemini/oauth_creds.json`).  |
-| `ANTIGRAVITY_RUNTIME_MODEL`  | Force all requests to a pinned runtime model ID.                                             |
-| `ANTIGRAVITY_CALLBACK_HOST`  | Loopback binding address for OAuth callback (`127.0.0.1` by default).                        |
-| `ANTIGRAVITY_NO_EXTRA_TOOLS` | Set to `1` to disable `google_search` and `generate_image` agent tools.                      |
+| Variable                         | Description                                                                                  |
+| :------------------------------- | :------------------------------------------------------------------------------------------- |
+| `ANTIGRAVITY_BASE_URL`           | Override the default API base URL (defaults to `https://daily-cloudcode-pa.googleapis.com`). |
+| `ANTIGRAVITY_PROJECT_ID`         | Override Google Cloud project ID discovery.                                                  |
+| `ANTIGRAVITY_USER_AGENT`         | Custom User-Agent (defaults to CLI 1.5.8 fingerprint, cl=1020628950).                        |
+| `ANTIGRAVITY_CLI_CREDS_PATH`     | Override the path to local agy credentials file (defaults to `~/.gemini/oauth_creds.json`).  |
+| `ANTIGRAVITY_RUNTIME_MODEL`      | Force all requests to a pinned runtime model ID.                                             |
+| `ANTIGRAVITY_CALLBACK_HOST`      | Loopback binding address for OAuth callback (`127.0.0.1` by default).                        |
+| `ANTIGRAVITY_NO_EXTRA_TOOLS`     | Set to `1` to disable `google_search` and `generate_image` agent tools.                      |
+| `ANTIGRAVITY_SYSTEM_PROMPT`      | Replace the built-in Antigravity persona that leads the request's `systemInstruction`.       |
+| `ANTIGRAVITY_SYSTEM_PROMPT_MODE` | `append` (default: persona, then the host prompt) or `host-only` (host prompt replaces it).  |
+
+### System instruction
+
+The request's `systemInstruction` starts with Antigravity's own persona (`You are Antigravity, a powerful
+agentic AI coding assistant…`, matching the wording the official CLI ships) and then appends the
+host prompt as a `# Host instructions` section, so the provider identity survives a host that supplies its
+own prompt. The text is a static constant: `ANTIGRAVITY_SYSTEM_PROMPT` replaces the persona and
+`ANTIGRAVITY_SYSTEM_PROMPT_MODE=host-only` restores the pre-0.11.1 behaviour (host prompt only). Nothing is
+randomized or rewritten per request.
 
 ---
 
@@ -156,6 +167,7 @@ To pin preferred models in `~/.pi/agent/settings.json`:
   - _Option 1 (Copy/Paste)_: Start `/login antigravity` on server, open link on local machine, and paste the redirected `http://localhost:51121/oauth-callback?...` URL directly into Pi.
   - _Option 2 (SSH Tunnel)_: Run `ssh -N -L 51121:127.0.0.1:51121 user@server` and log in normally.
 - **Quota Exceeded (HTTP 429)**: Check `/antigravity.usage`. Link an additional account via `/login antigravity` and switch with `/antigravity.accounts switch <index>`.
+- **429 without a quota hint (no output at all)**: the generic `RESOURCE_EXHAUSTED` body has two causes. It is either transient throttling (Pi retries automatically, and the request is retried once more on a lower thinking tier of the same model), or Google rejecting this third-party client's `systemInstruction`. If every attempt fails immediately with no tokens, treat it as the second case: set `ANTIGRAVITY_SYSTEM_PROMPT` to your own persona text, or `ANTIGRAVITY_SYSTEM_PROMPT_MODE=host-only` to send only the host prompt, or run that task with the official `agy` CLI, or switch models. `pi-antigravity` does not attempt to disguise its prompt to get past that check.
 
 ---
 
@@ -294,6 +306,8 @@ pi update git:github.com/JingYangYuan/pi-antigravity
   - _方案 A（地址回贴）_：在服务器执行 `/login antigravity`，在本地电脑浏览器打开登录链接授权。授权后浏览器跳转至 `http://localhost:51121/oauth-callback?...` 失败时，将浏览器地址栏的完整网址复制粘贴回 Pi 控制台提示处即可。
   - _方案 B（SSH 端口转发）_：本地电脑终端执行 `ssh -N -L 51121:127.0.0.1:51121 用户@服务器IP`，然后在服务器端运行 `/login antigravity`，浏览器授权后将自动命中回环端口。
 - **用量限制（HTTP 429）**：通过 `/antigravity.usage` 查看哪个配额池耗尽；支持通过 `/login antigravity` 绑定多个账号，并在不同账号间灵活切换。
+- **429 但不含配额提示（完全没有输出）**：通用的 `RESOURCE_EXHAUSTED` 有两种成因。一是瞬时限流：Pi 会自动重试，扩展还会把同一模型降到更低思考档位再试一次。二是 Google 拒绝了本第三方客户端的 `systemInstruction`——如果每次尝试都立刻失败、一个字都不产出，请按第二种处理：设置 `ANTIGRAVITY_SYSTEM_PROMPT` 自定义人格文本，或设置 `ANTIGRAVITY_SYSTEM_PROMPT_MODE=host-only` 只发送宿主提示词，或改用官方 `agy` CLI 执行该任务，或切换模型。本扩展不会为了绕过该检查而伪装提示词。
+- **系统提示词组成**：请求的 `systemInstruction` 以 Antigravity 自身人格开头（`You are Antigravity, a powerful agentic AI coding assistant…`，与官方 CLI 的表述一致），随后以 `# Host instructions` 段落附上宿主提示词。人格文本是源码中的固定常量，可用 `ANTIGRAVITY_SYSTEM_PROMPT` 替换，不会逐请求随机化或改写。
 
 ---
 

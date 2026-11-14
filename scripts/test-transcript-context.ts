@@ -7,6 +7,7 @@
  */
 import type { Api, AssistantMessage, Context, Model, Tool } from "@earendil-works/pi-ai";
 import { buildRequest, convertMessages } from "../src/stream/stream.ts";
+import { ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION } from "../src/stream/system-prompt.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -91,10 +92,14 @@ const transcriptContext = {
 const transcriptReq = buildRequest(testModel, transcriptContext, "test-project", {}, "gemini-3.8-flash");
 assert.ok(transcriptReq.request.tools, "request.tools must not be undefined");
 assert.deepEqual(declarations(transcriptReq), ["bash", "edit"]);
-assert.equal(systemText(transcriptReq), "You are an expert developer.");
+assert.ok(/^You are Antigravity/.test(systemText(transcriptReq)), "persona leads the systemInstruction");
 assert.ok(
-  !systemText(transcriptReq).includes("Google DeepMind"),
-  "generic fallback system prompt not used",
+  systemText(transcriptReq).includes("# Host instructions\nYou are an expert developer."),
+  "the transcript system prompt is kept as the host section",
+);
+assert.ok(
+  !systemText(transcriptReq).includes(ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION),
+  "the no-host fallback directive is not used when a host prompt exists",
 );
 assert.ok(
   !(transcriptReq.request.contents ?? []).some((turn) => turn.role === ("system" as never)),
@@ -114,7 +119,10 @@ const legacyContext: Context = {
 };
 const legacyReq = buildRequest(testModel, legacyContext, "test-project", {}, "gemini-3.8-flash");
 assert.deepEqual(declarations(legacyReq), ["bash"]);
-assert.equal(systemText(legacyReq), "You are a legacy assistant.");
+assert.ok(
+  systemText(legacyReq).includes("# Host instructions\nYou are a legacy assistant."),
+  "legacy flat systemPrompt is kept as the host section",
+);
 
 const sectionContext = {
   messages: [

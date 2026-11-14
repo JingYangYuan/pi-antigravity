@@ -473,6 +473,44 @@ export function getFallbackRuntimeModel(runtimeModel: string, effort?: string): 
   return undefined;
 }
 
+/** Thinking tiers advertised by the backend, highest first. */
+const THINKING_TIER_LADDER: readonly ThinkingEffort[] = [
+  ThinkingEffort.Xhigh,
+  ThinkingEffort.High,
+  ThinkingEffort.Medium,
+  ThinkingEffort.Low,
+  ThinkingEffort.Minimal,
+  ThinkingEffort.Off,
+];
+
+function requestedTierIndex(effort: string | undefined): number {
+  const tier = (effort ?? ThinkingEffort.Off) as ThinkingEffort;
+  const index = THINKING_TIER_LADDER.indexOf(tier);
+  return index === -1 ? THINKING_TIER_LADDER.indexOf(ThinkingEffort.Off) : index;
+}
+
+/**
+ * Lower same-model thinking tiers for a public model id, highest first and deduped.
+ *
+ * Used as the first fallback candidates when the backend answers a transient 429 for
+ * the requested tier: `gemini-4-hydrogen` + `high` yields `-medium` then `-low`.
+ * Returns `[]` when the model has no routing entry (custom/discovered ids) or when
+ * every lower tier maps to the same runtime id (Claude, GPT-OSS).
+ */
+export function getSiblingTierRuntimeModels(modelId: string, effort: string | undefined): string[] {
+  const entry = currentRouting[modelId] ?? ANTIGRAVITY_ROUTING[modelId];
+  if (!entry) return [];
+  const preferred = getAntigravityRequestModelId(modelId, effort);
+  const out: string[] = [];
+  for (const tier of THINKING_TIER_LADDER.slice(requestedTierIndex(effort) + 1)) {
+    const runtime =
+      tier === ThinkingEffort.Off ? (entry.off ?? entry.defaultRequestId) : entry.routing?.[tier];
+    if (!runtime || runtime === preferred || out.includes(runtime)) continue;
+    out.push(runtime);
+  }
+  return out;
+}
+
 export type { ThinkingWire };
 
 export const ANTIGRAVITY_MODEL_ENUM: Record<string, string> = {

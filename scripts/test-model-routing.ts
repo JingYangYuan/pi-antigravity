@@ -20,6 +20,7 @@ import {
   getMaxOutputTokens,
   getAntigravityRequestModelId,
   getFallbackRuntimeModel,
+  getSiblingTierRuntimeModels,
   getThinkingConfig,
 } from "../src/models/index.js";
 import {
@@ -27,6 +28,7 @@ import {
   convertMessages,
   convertTools,
   friendlyAntigravityError,
+  isHardQuota429,
   mapStopReason,
 } from "../src/stream/index.js";
 import {
@@ -705,6 +707,16 @@ const transient429Error = friendlyAntigravityError(
 assert.ok(!/Quota reached/i.test(transient429Error), "transient 429 must not be classified as Quota reached");
 assert.match(transient429Error, /Rate limited by Antigravity \(429 ResourceExhausted\)/);
 assert.match(transient429Error, /retrying automatically/);
+// The generic RESOURCE_EXHAUSTED body is also what a server-side rejection of the
+// client's system instruction looks like, so the message must name the workarounds.
+assert.match(transient429Error, /ANTIGRAVITY_SYSTEM_PROMPT/);
+assert.match(transient429Error, /agy CLI/);
+assert.match(transient429Error, /Troubleshooting/);
+assert.equal(isHardQuota429("Resource has been exhausted (e.g. check quota)."), false);
+assert.equal(isHardQuota429("Individual quota reached."), true);
+assert.equal(isHardQuota429("Quota exceeded. Resets in 6 days."), true);
+assert.equal(isHardQuota429("You have exceeded your weekly limit."), true);
+assert.equal(isHardQuota429("Rate limit reached, please slow down."), false);
 
 // Real quota walls must remain non-retryable Quota reached
 const quotaResetError = friendlyAntigravityError(
@@ -949,6 +961,35 @@ assert.equal(
 assert.equal(getFallbackRuntimeModel("gemini-3.7-flash"), "gemini-3.6-flash-low");
 assert.equal(getFallbackRuntimeModel("gemini-3.6-flash-low"), undefined);
 assert.equal(getFallbackRuntimeModel("claude-sonnet-4-6"), undefined);
+
+// Test same-model sibling tier ladders (first fallback candidates on a transient 429)
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-4-hydrogen", "high"), [
+  "gemini-4-hydrogen-medium",
+  "gemini-4-hydrogen-low",
+]);
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-4-hydrogen", "xhigh"), [
+  "gemini-4-hydrogen-high",
+  "gemini-4-hydrogen-medium",
+  "gemini-4-hydrogen-low",
+]);
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-4-hydrogen", "low"), []);
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-4-hydrogen", "off"), []);
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-4-hydrogen", undefined), []);
+// Argon's high/xhigh tiers share M417, so the deduped ladder starts one level down.
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-4-argon", "high"), [
+  "gemini-4-argon-medium",
+  "gemini-4-argon-low",
+]);
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-4-argon", "off"), []);
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-4-carbon", "medium"), ["gemini-4-carbon-low"]);
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-3.8-flash", "medium"), ["gemini-3.8-flash-low"]);
+// Claude / GPT-OSS expose one runtime id for every tier.
+assert.deepEqual(getSiblingTierRuntimeModels("claude-opus-4-6", "high"), []);
+assert.deepEqual(getSiblingTierRuntimeModels("claude-sonnet-4-6", "high"), []);
+assert.deepEqual(getSiblingTierRuntimeModels("gpt-oss-120b", "high"), []);
+// Custom/discovered ids have no routing entry.
+assert.deepEqual(getSiblingTierRuntimeModels("gemini-9.9-flash", "high"), []);
+assert.deepEqual(getSiblingTierRuntimeModels("unknown-model", undefined), []);
 
 // Test buildRequest output token clamping
 const dummyContext: Context = {
@@ -1379,8 +1420,16 @@ const withPiPrompt = buildRequest(
   {},
   "gemini-3.7-flash-low",
 );
-assert.equal(withPiPrompt.request.systemInstruction.parts.length, 1);
-assert.equal(withPiPrompt.request.systemInstruction.parts[0]?.text, "You are Pi. Follow AGENTS.md.");
+assert.equal(withPiPrompt.request.systemInstruction.parts.length, 2);
+assert.match(
+  String(withPiPrompt.request.systemInstruction.parts[0]?.text),
+  /^You are Antigravity, a powerful agentic AI coding assistant/,
+  "the Antigravity persona leads the systemInstruction",
+);
+assert.equal(
+  withPiPrompt.request.systemInstruction.parts[1]?.text,
+  "# Host instructions\nYou are Pi. Follow AGENTS.md.",
+);
 
 // Skill-only turns are injected instructions, not user prompts. The request remains
 // valid without inventing a user message, and the Skill is preserved as system context.
@@ -1420,9 +1469,13 @@ const systemOnlyRequest = buildRequest(
   "gemini-3.7-flash-low",
 );
 assert.equal(systemOnlyRequest.request.contents[0]?.parts[0]?.text, "Apply the active system instructions.");
+assert.match(
+  String(systemOnlyRequest.request.systemInstruction.parts[0]?.text),
+  /^You are Antigravity, a powerful agentic AI coding assistant/,
+);
 assert.equal(
-  systemOnlyRequest.request.systemInstruction.parts[0]?.text,
-  "Follow the repository conventions.",
+  systemOnlyRequest.request.systemInstruction.parts[1]?.text,
+  "# Host instructions\nFollow the repository conventions.",
 );
 
 const skillAndUserContext = {

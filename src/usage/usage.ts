@@ -1,6 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   antigravityHeaders,
+  buildClientMetadata,
   endpointCandidates,
   extractProjectId,
   fetchAvailableModelsCatalog,
@@ -197,11 +198,7 @@ function parseTier(value: unknown): TierInfo | undefined {
 async function loadCodeAssistSafe(token: string) {
   try {
     return await postJson("/v1internal:loadCodeAssist", token, {
-      metadata: {
-        ideType: "ANTIGRAVITY",
-        platform: "PLATFORM_UNSPECIFIED",
-        pluginType: "GEMINI",
-      },
+      metadata: buildClientMetadata(),
     });
   } catch {
     return null;

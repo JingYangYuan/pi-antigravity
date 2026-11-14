@@ -47,6 +47,7 @@ import {
   getMaxOutputTokens,
   getAntigravityRequestModelId,
   getFallbackRuntimeModel,
+  getSiblingTierRuntimeModels,
   getThinkingConfig,
   PROVIDER_ID,
 } from "../models/models.js";
@@ -75,15 +76,9 @@ import {
   sanitizeText,
 } from "../utils/util.js";
 import { antigravityFetch, prewarmConnection } from "../utils/http.js";
+import { resolveSystemPromptParts } from "./system-prompt.js";
 
 export { ANTIGRAVITY_API };
-
-const ANTIGRAVITY_SYSTEM_INSTRUCTION =
-  "You are Antigravity, a powerful agentic AI coding assistant designed by Google DeepMind. " +
-  "You are pair programming with a user to solve coding tasks. Be concise, practical, and tool-aware.";
-
-const ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION =
-  'CRITICAL: NEVER output rule checks, formatting guidelines, constraint checklists (e.g. "No emdashes"), or your thinking/personality preambles in the final response. Output only the final response.';
 
 const CONTINUATION_TEXT = "Continue the active task using the available instructions and context.";
 let toolCallCounter = 0;
@@ -888,10 +883,9 @@ export function buildRequest(
   );
   const systemPromptText = resolveCurrentSystemPrompt(context);
   const declaredTools = resolveCurrentTools(context);
-  const systemParts = systemPromptText
-    ? [{ text: sanitizeText(systemPromptText) }]
-    : [{ text: ANTIGRAVITY_SYSTEM_INSTRUCTION }, { text: ANTIGRAVITY_NO_PREAMBLE_INSTRUCTION }];
-  systemParts.push(...injectedSkills.map((skill) => ({ text: sanitizeText(skill) })));
+  const systemParts = resolveSystemPromptParts(systemPromptText, injectedSkills).map((text) => ({
+    text: sanitizeText(text),
+  }));
 
   const contents = convertMessages(model, context, runtimeModel);
   const hasUserText = contents.some(
@@ -992,6 +986,22 @@ export function mapStopReason(reason: string | undefined): StopReason {
   return reason ? StopReason.Error : StopReason.Stop;
 }
 
+/**
+ * Whether a 429 body describes a real quota wall (wait for the reset, or switch
+ * accounts) rather than transient throttling. Google answers a wall with
+ * "Individual quota reached" / "Resets in …", while generic RESOURCE_EXHAUSTED
+ * covers throttling, capacity pressure, and server-side client rejections.
+ * Exported for unit tests.
+ */
+export function isHardQuota429(text: string): boolean {
+  if (/Individual quota reached/i.test(text)) return true;
+  if (/Resets? in /i.test(text)) return true;
+  return (
+    !/rate.?limit/i.test(text) &&
+    /quota exceeded|exceeded your|limit reached|reached your|daily limit/i.test(text)
+  );
+}
+
 /** Exported for unit tests. */
 export function friendlyAntigravityError(status: number | undefined, text: string): string {
   const msg = redactSecrets(jsonOrTextError(text)).slice(0, 500);
@@ -1051,14 +1061,11 @@ export function friendlyAntigravityError(status: number | undefined, text: strin
     // alone wrongly marked transient throttling as a hard quota wall, disabling
     // Pi's automatic retry backoff. Keep real quota walls non-retryable, and
     // format transient throttling so Pi's retry mechanism engages.
-    const hardLimit =
-      Boolean(wait) ||
-      (!/rate.?limit/i.test(msg) &&
-        /quota exceeded|exceeded your|limit reached|reached your|daily limit/i.test(msg));
+    const hardLimit = isHardQuota429(msg);
     if (hardLimit) {
       return `Quota reached.${wait ? ` Please wait ${wait}.` : ""} Next: switch models or retry later.`;
     }
-    return "Rate limited by Antigravity (429 ResourceExhausted). Next: retrying automatically; if it persists, switch models.";
+    return "Rate limited by Antigravity (429 ResourceExhausted). Next: retrying automatically; if this happens on every attempt with no output, Google is rejecting this client's system instruction — set ANTIGRAVITY_SYSTEM_PROMPT (or ANTIGRAVITY_SYSTEM_PROMPT_MODE=host-only), run the task with the official agy CLI, or switch models. See README → Troubleshooting.";
   }
   if (status === 500) {
     return "Antigravity had an internal server error. Next: retry in a moment or switch models.";
@@ -1507,8 +1514,13 @@ export function streamAntigravity(
       }
 
       const runtimeCandidates = [initialRuntimeModel];
+      // Sibling tiers of the same model come first: a transient 429 on the requested
+      // tier often succeeds one level down (e.g. gemini-4-hydrogen-high → -medium).
+      for (const sibling of getSiblingTierRuntimeModels(model.id, effort)) {
+        if (!runtimeCandidates.includes(sibling)) runtimeCandidates.push(sibling);
+      }
       const fallback = getFallbackRuntimeModel(initialRuntimeModel, effort);
-      if (fallback && fallback !== initialRuntimeModel) {
+      if (fallback && !runtimeCandidates.includes(fallback)) {
         runtimeCandidates.push(fallback);
       }
 
@@ -1547,19 +1559,20 @@ export function streamAntigravity(
             setLastStatus(response.status);
             if (response.ok) break;
             lastText = await response.text();
-            if (
-              response.status === 429 &&
-              (/Individual quota reached/i.test(lastText) ||
-                /Resets? in /i.test(lastText) ||
-                (!/rate.?limit/i.test(lastText) &&
-                  /quota exceeded|exceeded your|daily limit/i.test(lastText)))
-            ) {
-              break;
-            }
+            if (response.status === 429 && isHardQuota429(lastText)) break;
             if (![403, 404, 429, 500, 502, 503, 504].includes(response.status)) break;
           }
 
           if (response?.ok) break;
+          // Transient throttling (not a quota wall): try the next sibling tier before
+          // surfacing an error the user cannot act on.
+          if (
+            response?.status === 429 &&
+            !isHardQuota429(lastText) &&
+            candIdx + 1 < runtimeCandidates.length
+          ) {
+            continue;
+          }
           if (response?.status === 404) {
             if (candIdx + 1 < runtimeCandidates.length) {
               continue;

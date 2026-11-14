@@ -99,6 +99,25 @@ export function antigravityHeaders(token: string): Record<string, string> {
   };
 }
 
+/**
+ * Client metadata for `v1internal` RPCs, restricted to the fields the backend's
+ * `google.internal.cloud.code.v1internal.ClientMetadata` message actually declares
+ * (`ide_type`, `ide_version`, `platform`, `plugin_type`).
+ *
+ * `subclientType`, `os`, `arch` and `ideName` have no `ClientMetadata` field, and
+ * sending any of them makes `/v1internal:loadCodeAssist` answer
+ * `400 Invalid JSON payload received. Unknown name ...`, which silently degrades
+ * project discovery to a hashed placeholder id. Keep this list minimal and shared.
+ */
+export function buildClientMetadata(): Record<string, string> {
+  return {
+    ideType: "ANTIGRAVITY",
+    ideVersion: AGY_VERSION,
+    platform: "PLATFORM_UNSPECIFIED",
+    pluginType: "GEMINI",
+  };
+}
+
 export function jsonOrTextError(text: string): string {
   try {
     const parsed = JSON.parse(text) as {
@@ -553,16 +572,7 @@ export async function fetchAvailableModelsCatalog(
 }
 
 async function loadCodeAssistUncached(token: string): Promise<string | undefined> {
-  const body = JSON.stringify({
-    metadata: {
-      ideType: "ANTIGRAVITY",
-      ideVersion: AGY_VERSION,
-      ideName: "antigravity",
-      subclientType: "cli",
-      os: resolveHostOs(),
-      arch: resolveHostArch(),
-    },
-  });
+  const body = JSON.stringify({ metadata: buildClientMetadata() });
 
   for (const endpoint of endpointCandidates()) {
     try {
@@ -574,7 +584,15 @@ async function loadCodeAssistUncached(token: string): Promise<string | undefined
       });
       setLastStatus(res.status);
       setLastEndpoint(endpoint);
-      if (!res.ok) continue;
+      if (!res.ok) {
+        // Keep the backend's reason visible in /antigravity.doctor instead of
+        // reducing a rejected payload to a bare status code.
+        const text = await res.text();
+        setLastError(
+          `loadCodeAssist ${res.status} ${endpoint}: ${jsonOrTextError(text).slice(0, 200)}`,
+        );
+        continue;
+      }
       const project = extractProjectId(await res.json());
       if (project) return project;
       return await listCloudAICompanionProjects(token);
