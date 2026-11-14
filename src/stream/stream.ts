@@ -1075,7 +1075,7 @@ export function friendlyAntigravityError(status: number | undefined, text: strin
     if (hardLimit) {
       return `Quota reached.${wait ? ` Please wait ${wait}.` : ""} Next: switch models or retry later.`;
     }
-    return "Rate limited by Antigravity (429 ResourceExhausted). Next: retrying automatically; if this happens on every attempt with no output, Google is rejecting this client's system instruction — set ANTIGRAVITY_SYSTEM_PROMPT (or ANTIGRAVITY_SYSTEM_PROMPT_MODE=host-only), run the task with the official agy CLI, or switch models. See README → Troubleshooting.";
+    return "Rate limited by Antigravity (429 ResourceExhausted). Next: retrying automatically; if this happens on every attempt with no output, Google is rejecting this client's system instruction — keep ANTIGRAVITY_SYSTEM_PROMPT_MODE at its persona-only default (or set ANTIGRAVITY_SYSTEM_PROMPT), run the task with the official agy CLI, or switch models. See README → Troubleshooting.";
   }
   if (status === 500) {
     return "Antigravity had an internal server error. Next: retry in a moment or switch models.";
