@@ -1,6 +1,8 @@
 import { antigravityEnv } from "./util.js";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
+import type { Dispatcher } from "undici";
+import type * as Undici from "undici";
 
 /**
  * Node's built-in fetch keeps an idle socket for only 4 seconds unless the server
@@ -118,7 +120,7 @@ export async function postJsonDirect(
  */
 let fallbackDispatcherPromise: Promise<unknown> | undefined;
 
-async function getFallbackDispatcher(undiciModule: typeof import("undici")): Promise<unknown> {
+async function getFallbackDispatcher(undiciModule: typeof Undici): Promise<unknown> {
   fallbackDispatcherPromise ??= (async () => {
     const globalDispatcher = undiciModule.getGlobalDispatcher();
     // A bare `Agent` means nobody configured proxying; anything else is a host choice
@@ -138,7 +140,7 @@ async function postJsonViaUndici(
   url: string,
   init: { headers?: Record<string, string>; body: string; signal?: AbortSignal },
 ): Promise<Response | undefined> {
-  let undiciModule: typeof import("undici");
+  let undiciModule: typeof Undici;
   try {
     undiciModule = await import("undici");
   } catch {
@@ -151,7 +153,7 @@ async function postJsonViaUndici(
     headers: init.headers,
     body: init.body,
     signal: init.signal,
-    dispatcher: dispatcher as import("undici").Dispatcher,
+    dispatcher: dispatcher as Dispatcher,
     headersTimeout: DIRECT_REQUEST_TIMEOUT_MS,
     bodyTimeout: DIRECT_REQUEST_TIMEOUT_MS,
   });

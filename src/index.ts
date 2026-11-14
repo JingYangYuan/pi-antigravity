@@ -11,11 +11,13 @@ import * as piAiCompat from "@earendil-works/pi-ai/compat";
 import {
   activateAccount,
   getApiKey,
+  hasAgyCliCredentials,
   listAccounts,
   loginAntigravity,
   rememberAccount,
   refreshAntigravityToken,
   removeAccount,
+  syncAgyCliCredentials,
   updateRememberedAccount,
 } from "./auth/index.js";
 import { DEFAULT_ENDPOINT } from "./client/index.js";
@@ -61,6 +63,21 @@ function emitCommandOutput(
 async function loginAndRemember(
   callbacks: Parameters<typeof loginAntigravity>[0],
 ): ReturnType<typeof loginAntigravity> {
+  // If local agy credentials already exist, import them directly to avoid browser OAuth risk!
+  if (hasAgyCliCredentials()) {
+    try {
+      const stored = await syncAgyCliCredentials();
+      return {
+        access: stored.access,
+        refresh: stored.refresh,
+        expires: stored.expires,
+        projectId: stored.projectId,
+        email: stored.email,
+      };
+    } catch {
+      // If sync fails, fall through to browser OAuth flow
+    }
+  }
   const credentials = await loginAntigravity(callbacks);
   rememberAccount(credentials);
   return credentials;
@@ -236,6 +253,33 @@ export default function (pi: ExtensionAPI): void {
     },
   });
 
+  pi.registerCommand("antigravity.sync", {
+    description:
+      "Sync active OAuth credentials directly from local agy CLI (~/.gemini/oauth_creds.json)",
+    handler: async (_args, ctx) => {
+      try {
+        if (!hasAgyCliCredentials()) {
+          emitCommandOutput(
+            ctx,
+            "No local Antigravity CLI credentials found at ~/.gemini/oauth_creds.json.",
+            "warning",
+          );
+          return;
+        }
+        if (ctx.hasUI) ctx.ui.notify("Syncing credentials from local agy…", "info");
+        const account = await syncAgyCliCredentials();
+        emitCommandOutput(
+          ctx,
+          `Successfully synced credentials for ${account.email || account.accountId} from local agy!`,
+          "info",
+        );
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        emitCommandOutput(ctx, `Credential sync failed: ${redactSecrets(msg)}`, "error");
+      }
+    },
+  });
+
   pi.registerCommand("antigravity.refresh", {
     description: "Force refresh Antigravity dynamic model catalog",
     handler: async (_args, ctx) => {
@@ -308,7 +352,7 @@ export default function (pi: ExtensionAPI): void {
         `lastError=${d.error ? redactSecrets(d.error) : "none"}`,
         "transport=native-streamSimple",
         "runtimeCli=not-used",
-        "commands=/antigravity.usage /antigravity.models /antigravity.accounts /antigravity.refresh /antigravity.doctor /antigravity.image /antigravity.search",
+        "commands=/antigravity.usage /antigravity.models /antigravity.accounts /antigravity.sync /antigravity.refresh /antigravity.doctor /antigravity.image /antigravity.search",
       ];
       emitCommandOutput(ctx, `Antigravity doctor\n${lines.join("\n")}`);
     },

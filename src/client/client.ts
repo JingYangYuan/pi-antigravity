@@ -65,12 +65,29 @@ export function endpointCandidates(): string[] {
   return explicit ? [assertSafeApiBaseUrl(explicit)] : ENDPOINT_FALLBACKS;
 }
 
-const DEFAULT_USER_AGENT =
-  "antigravity/cli/1.3.6 (aidev_client; os_type=linux; arch=amd64; cl=982146307; auth_method=consumer)";
+export const AGY_VERSION = "1.5.8";
+export const AGY_CHANGELIST = "1020628950";
 
-/** Default User-Agent matching pure Antigravity CLI wire fingerprint. */
+export function resolveHostOs(): string {
+  switch (process.platform) {
+    case "darwin":
+      return "darwin";
+    case "win32":
+      return "windows";
+    default:
+      return "linux";
+  }
+}
+
+export function resolveHostArch(): string {
+  return process.arch === "arm64" ? "arm64" : "amd64";
+}
+
+/** Default User-Agent matching pure Antigravity CLI wire fingerprint (v1.5.8, cl=1020628950). */
 export function defaultUserAgent(): string {
-  return DEFAULT_USER_AGENT;
+  const osType = resolveHostOs();
+  const arch = resolveHostArch();
+  return `antigravity/cli/${AGY_VERSION} (aidev_client; os_type=${osType}; arch=${arch}; cl=${AGY_CHANGELIST}; auth_method=consumer)`;
 }
 
 /** HTTP headers for Antigravity API requests matching CLI wire traffic. */
@@ -197,9 +214,7 @@ function summarizeModelCandidate(value: unknown): string {
 /** Runtime ids look like gemini-*, claude-*, gpt-oss-*, orchestrator-*; never MODEL_PLACEHOLDER_*. */
 export function isUsableRuntimeModelId(id: string): boolean {
   return (
-    /^(gemini-|claude-|gpt-oss-|orchestrator)/i.test(id) &&
-    !/\s/.test(id) &&
-    !/^MODEL_/i.test(id)
+    /^(gemini-|claude-|gpt-oss-|orchestrator)/i.test(id) && !/\s/.test(id) && !/^MODEL_/i.test(id)
   );
 }
 
@@ -541,6 +556,11 @@ async function loadCodeAssistUncached(token: string): Promise<string | undefined
   const body = JSON.stringify({
     metadata: {
       ideType: "ANTIGRAVITY",
+      ideVersion: AGY_VERSION,
+      ideName: "antigravity",
+      subclientType: "cli",
+      os: resolveHostOs(),
+      arch: resolveHostArch(),
     },
   });
 

@@ -19,5 +19,15 @@ export {
   rememberAccount,
   removeAccount,
   updateRememberedAccount,
+  writeActiveCredential,
 } from "./accounts.js";
 export type { AccountSummary, StoredAccount } from "./accounts.js";
+export {
+  syncAgyCliCredentials,
+  hasAgyCliCredentials,
+  readAgyCliCredentials,
+  extractEmailFromIdToken,
+  resolveAgyCredsPath,
+  DEFAULT_AGY_CREDS_PATH,
+} from "./sync.js";
+export type { RawAgyCliCreds } from "./sync.js";

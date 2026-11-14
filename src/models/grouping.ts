@@ -228,7 +228,10 @@ function displayFamily(displayName: string | undefined): string | undefined {
   // parenthetical names the planner, not a thinking level, so it stays in the name.
   if (/^orchestrator\b/i.test(displayName)) return displayName.trim().toLowerCase();
   return displayName
-    .replace(/\s*\((?:extra\s*low|extra\s*high|x-?\s*high|low|medium|high|minimal|thinking)\)\s*$/i, "")
+    .replace(
+      /\s*\((?:extra\s*low|extra\s*high|x-?\s*high|low|medium|high|minimal|thinking)\)\s*$/i,
+      "",
+    )
     .trim()
     .toLowerCase();
 }

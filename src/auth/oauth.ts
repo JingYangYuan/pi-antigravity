@@ -7,17 +7,16 @@ import { escapeHtml, antigravityEnv } from "../utils/util.js";
 import { resolveCallbackHost, redactSecrets } from "../utils/security.js";
 import type { AntigravityOAuthCredentials, CallbackServer } from "../types/types.js";
 
-export const REDIRECT_URI = "http://localhost:51121/oauth-callback";
+export const REDIRECT_URI =
+  antigravityEnv("REDIRECT_URI") || "http://localhost:51121/oauth-callback";
 export const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export const TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const OAUTH_CALLBACK_TIMEOUT_MS = 5 * 60 * 1000;
 export const SCOPES = [
-  "https://www.googleapis.com/auth/aicode",
+  "openid",
   "https://www.googleapis.com/auth/cloud-platform",
-  "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
-  "https://www.googleapis.com/auth/cclog",
-  "https://www.googleapis.com/auth/experimentsandconfigs",
+  "https://www.googleapis.com/auth/userinfo.email",
 ];
 
 /**
@@ -73,7 +72,7 @@ function generatePKCE(): { verifier: string; challenge: string } {
   return { verifier, challenge };
 }
 
-async function getUserEmail(token: string): Promise<string | undefined> {
+export async function getUserEmail(token: string): Promise<string | undefined> {
   try {
     const res = await oauthFetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
       headers: { Authorization: `Bearer ${token}` },
@@ -119,7 +118,7 @@ function startCallbackServer(expectedState: string): Promise<CallbackServer> {
       }
 
       const url = new URL(req.url || "", REDIRECT_URI);
-      if (url.pathname !== "/oauth-callback") {
+      if (url.pathname !== "/oauth-callback" && url.pathname !== "/auth/callback") {
         res.writeHead(404, oauthCallbackHeaders());
         res.end("Antigravity OAuth callback route not found.");
         return;

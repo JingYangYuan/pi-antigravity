@@ -83,18 +83,19 @@ Restart Pi or execute `/reload` after installing.
 
 ### Commands
 
-| Command                       | Description                                                                    |
-| :---------------------------- | :----------------------------------------------------------------------------- |
-| `/login antigravity`          | Authenticate with Google OAuth (supports linking multiple accounts).           |
-| `/model antigravity/<id>`     | Select an Antigravity model (e.g. `gemini-4-argon`, `gemini-3.8-flash`).       |
-| `/antigravity.usage`          | Show server-reported quota pools (Gemini / Argon / Claude+GPT, 5h + weekly).   |
-| `/antigravity.models`         | List all runtime models, remaining quota percentages, and capabilities.        |
-| `/antigravity.models all`     | Include internal / tab / chat models normally filtered out.                    |
-| `/antigravity.accounts`       | List linked Google accounts (`switch <id/email>` or `remove <id/email>`).      |
-| `/antigravity.refresh`        | Force refresh the live dynamic model catalog from Antigravity.                 |
-| `/antigravity.doctor`         | Show sanitized diagnostics (active endpoint, status, resolved model, latency). |
-| `/antigravity.image <prompt>` | Generate an image (`--ratio 16:9`, `--model`, `--path`).                       |
-| `/antigravity.search <query>` | Real-time web search via Google Search Grounding (`--thinking`, `--url`).      |
+| Command                       | Description                                                                      |
+| :---------------------------- | :------------------------------------------------------------------------------- |
+| `/login antigravity`          | Authenticate with Google OAuth (auto-syncs from local agy if found).             |
+| `/model antigravity/<id>`     | Select an Antigravity model (e.g. `gemini-4-argon`, `gemini-3.8-flash`).         |
+| `/antigravity.sync`           | Sync active OAuth credentials directly from local agy CLI without browser login. |
+| `/antigravity.usage`          | Show server-reported quota pools (Gemini / Argon / Claude+GPT, 5h + weekly).     |
+| `/antigravity.models`         | List all runtime models, remaining quota percentages, and capabilities.          |
+| `/antigravity.models all`     | Include internal / tab / chat models normally filtered out.                      |
+| `/antigravity.accounts`       | List linked Google accounts (`switch <id/email>` or `remove <id/email>`).        |
+| `/antigravity.refresh`        | Force refresh the live dynamic model catalog from Antigravity.                   |
+| `/antigravity.doctor`         | Show sanitized diagnostics (active endpoint, status, resolved model, latency).   |
+| `/antigravity.image <prompt>` | Generate an image (`--ratio 16:9`, `--model`, `--path`).                         |
+| `/antigravity.search <query>` | Real-time web search via Google Search Grounding (`--thinking`, `--url`).        |
 
 ---
 
@@ -102,19 +103,19 @@ Restart Pi or execute `/reload` after installing.
 
 When you select a public model ID, `pi-antigravity` dynamically routes requests to the optimal backend runtime variant based on your active thinking effort:
 
-| Public Model ID       | Input Modalities | Thinking Levels        | Context Window | Max Output | Backend Routing                                                                                          |
-| :-------------------- | :--------------- | :--------------------- | :------------- | :--------- | :------------------------------------------------------------------------------------------------------- |
-| **`gemini-4-hydrogen`** | Text, Image    | Low, Medium, High, XHigh | **1,048,576** | **65,536** | low → `gemini-4-hydrogen-low`<br>medium → `-medium`<br>high → `-high`<br>xhigh → `-xhigh`            |
-| **`gemini-4-carbon`** | Text, Image      | Low, Medium, High      | **1,048,576**  | **65,535** | low → `gemini-4-carbon-low`<br>medium → `-medium`<br>high → `-high`                                     |
-| **`gemini-4-argon`**  | Text, Image      | Low, Medium, High      | **1,048,576**  | **65,536** | low → `gemini-4-argon-low`<br>medium → `gemini-4-argon-medium`<br>high → `gemini-4-argon-high` |
-| `gemini-3.8-flash`   | Text, Image      | Low, Medium, High | 1,048,576      | 65,536     | low/medium/high variants                                                                       |
-| `gemini-3.7-flash`   | Text, Image      | Low, Medium, High | 1,048,576      | 65,536     | low/medium/high variants                                                                       |
-| `gemini-3.6-flash`   | Text, Image      | Low, Medium, High | 1,048,576      | 65,536     | low/medium/high variants                                                                       |
-| `gemini-3.5-flash`   | Text, Image      | Low, Medium, High | 1,048,576      | 65,536     | extra-low/low/agent variants                                                                   |
-| `gemini-3.1-pro`     | Text, Image      | Low, High         | 1,048,576      | 65,535     | low → `gemini-3.1-pro-low`<br>high → `gemini-pro-agent`                                        |
-| `claude-sonnet-4-6`  | Text, Image      | High              | 200,000        | 64,000     | high → `claude-sonnet-4-6`                                                                     |
-| `claude-opus-4-6`    | Text, Image      | High              | 250,000        | 64,000     | high → `claude-opus-4-6-thinking`                                                              |
-| `gpt-oss-120b`       | Text             | Medium            | 131,072        | 32,768     | medium → `gpt-oss-120b-medium`                                                                 |
+| Public Model ID         | Input Modalities | Thinking Levels          | Context Window | Max Output | Backend Routing                                                                                |
+| :---------------------- | :--------------- | :----------------------- | :------------- | :--------- | :--------------------------------------------------------------------------------------------- |
+| **`gemini-4-hydrogen`** | Text, Image      | Low, Medium, High, XHigh | **1,048,576**  | **65,536** | low → `gemini-4-hydrogen-low`<br>medium → `-medium`<br>high → `-high`<br>xhigh → `-xhigh`      |
+| **`gemini-4-carbon`**   | Text, Image      | Low, Medium, High        | **1,048,576**  | **65,535** | low → `gemini-4-carbon-low`<br>medium → `-medium`<br>high → `-high`                            |
+| **`gemini-4-argon`**    | Text, Image      | Low, Medium, High        | **1,048,576**  | **65,536** | low → `gemini-4-argon-low`<br>medium → `gemini-4-argon-medium`<br>high → `gemini-4-argon-high` |
+| `gemini-3.8-flash`      | Text, Image      | Low, Medium, High        | 1,048,576      | 65,536     | low/medium/high variants                                                                       |
+| `gemini-3.7-flash`      | Text, Image      | Low, Medium, High        | 1,048,576      | 65,536     | low/medium/high variants                                                                       |
+| `gemini-3.6-flash`      | Text, Image      | Low, Medium, High        | 1,048,576      | 65,536     | low/medium/high variants                                                                       |
+| `gemini-3.5-flash`      | Text, Image      | Low, Medium, High        | 1,048,576      | 65,536     | extra-low/low/agent variants                                                                   |
+| `gemini-3.1-pro`        | Text, Image      | Low, High                | 1,048,576      | 65,535     | low → `gemini-3.1-pro-low`<br>high → `gemini-pro-agent`                                        |
+| `claude-sonnet-4-6`     | Text, Image      | High                     | 200,000        | 64,000     | high → `claude-sonnet-4-6`                                                                     |
+| `claude-opus-4-6`       | Text, Image      | High                     | 250,000        | 64,000     | high → `claude-opus-4-6-thinking`                                                              |
+| `gpt-oss-120b`          | Text             | Medium                   | 131,072        | 32,768     | medium → `gpt-oss-120b-medium`                                                                 |
 
 To pin preferred models in `~/.pi/agent/settings.json`:
 
@@ -139,7 +140,8 @@ To pin preferred models in `~/.pi/agent/settings.json`:
 | :--------------------------- | :------------------------------------------------------------------------------------------- |
 | `ANTIGRAVITY_BASE_URL`       | Override the default API base URL (defaults to `https://daily-cloudcode-pa.googleapis.com`). |
 | `ANTIGRAVITY_PROJECT_ID`     | Override Google Cloud project ID discovery.                                                  |
-| `ANTIGRAVITY_USER_AGENT`     | Custom User-Agent (defaults to CLI 1.3.6 fingerprint).                                       |
+| `ANTIGRAVITY_USER_AGENT`     | Custom User-Agent (defaults to CLI 1.5.8 fingerprint, cl=1020628950).                        |
+| `ANTIGRAVITY_CLI_CREDS_PATH` | Override the path to local agy credentials file (defaults to `~/.gemini/oauth_creds.json`).  |
 | `ANTIGRAVITY_RUNTIME_MODEL`  | Force all requests to a pinned runtime model ID.                                             |
 | `ANTIGRAVITY_CALLBACK_HOST`  | Loopback binding address for OAuth callback (`127.0.0.1` by default).                        |
 | `ANTIGRAVITY_NO_EXTRA_TOOLS` | Set to `1` to disable `google_search` and `generate_image` agent tools.                      |
@@ -171,8 +173,8 @@ To pin preferred models in `~/.pi/agent/settings.json`:
 2. **Gemini 4 Carbon 支持**：接入 `gemini-4-carbon`（Ultra 专属），支持 Low / Medium / High 三档与 65,535 输出上限。
 3. **底层 Thinking 协议适配**：适配 Gemini 4 系列特殊的 `thinkingBudget: -1` 协议约束，彻底杜绝标准 Gemini 模型在思维预算为 0 时引发的 `HTTP 400 THINKING_LEVEL_MINIMAL` 报错。
 4. **三大独立配额池监控**：`/antigravity.usage` 实时显示 **Gemini 常规模型（5小时+周度）**、**Gemini 4 Argon（专属周度）** 与 **Claude / GPT 模型（5小时+周度）** 三大配额池的消耗进度与重置倒计时。
-4. **多端点优先级智能合并**：重构模型探测逻辑（`mergeAvailableModelsResults`），确保主端点 `daily-cloudcode-pa` 的实时配额与可用模型不会被兜底沙箱端点的禁用占位数据所覆盖。
-5. **多账号无缝轮换**：支持关联多个 Google 账号，遭遇单账号周度配额耗尽时可一键切换或自动故障转移。
+5. **多端点优先级智能合并**：重构模型探测逻辑（`mergeAvailableModelsResults`），确保主端点 `daily-cloudcode-pa` 的实时配额与可用模型不会被兜底沙箱端点的禁用占位数据所覆盖。
+6. **多账号无缝轮换**：支持关联多个 Google 账号，遭遇单账号周度配额耗尽时可一键切换或自动故障转移。
 
 ---
 
@@ -251,35 +253,36 @@ pi update git:github.com/JingYangYuan/pi-antigravity
 
 ### 📋 常用斜杠命令
 
-| 命令                           | 功能说明                                                               |
-| :----------------------------- | :--------------------------------------------------------------------- |
-| `/login antigravity`           | 发起 Google OAuth 授权；重复执行可绑定多个 Google 账号                 |
-| `/model antigravity/<id>`      | 选取模型（如 `gemini-4-argon`、`gemini-3.8-flash` 等）                 |
-| `/antigravity.usage`           | 查看服务端报告的共享配额池（Gemini / Argon / Claude+GPT，5h + 周度）   |
-| `/antigravity.models`          | 列出所有可用 runtime 模型、剩余用量百分比及功能标签                    |
-| `/antigravity.accounts`        | 管理多账号列表（`switch <序号/邮箱>` 切换，`remove <序号/邮箱>` 解绑） |
-| `/antigravity.refresh`         | 强制从服务端探测并刷新最新动态模型目录                                 |
-| `/antigravity.doctor`          | 输出脱敏后的诊断数据（端点、状态码、命中模型、网络延迟）               |
-| `/antigravity.search <关键词>` | 通过 Google Search Grounding 执行实时联网搜索（支持 `--thinking`）     |
-| `/antigravity.image <提示词>`  | 调用 Antigravity 生成图片并保存至本地项目（支持 `--ratio 16:9`）       |
+| 命令                           | 功能说明                                                                 |
+| :----------------------------- | :----------------------------------------------------------------------- |
+| `/login antigravity`           | 发起 Google OAuth 授权（若本地存在 agy 凭证将自动免跳转同步）            |
+| `/model antigravity/<id>`      | 选取模型（如 `gemini-4-argon`、`gemini-3.8-flash` 等）                   |
+| `/antigravity.sync`            | 直接同步本机官方 agy CLI（`~/.gemini/oauth_creds.json`）凭证，零风控风险 |
+| `/antigravity.usage`           | 查看服务端报告的共享配额池（Gemini / Argon / Claude+GPT，5h + 周度）     |
+| `/antigravity.models`          | 列出所有可用 runtime 模型、剩余用量百分比及功能标签                      |
+| `/antigravity.accounts`        | 管理多账号列表（`switch <序号/邮箱>` 切换，`remove <序号/邮箱>` 解绑）   |
+| `/antigravity.refresh`         | 强制从服务端探测并刷新最新动态模型目录                                   |
+| `/antigravity.doctor`          | 输出脱敏后的诊断数据（端点、状态码、命中模型、网络延迟）                 |
+| `/antigravity.search <关键词>` | 通过 Google Search Grounding 执行实时联网搜索（支持 `--thinking`）       |
+| `/antigravity.image <提示词>`  | 调用 Antigravity 生成图片并保存至本地项目（支持 `--ratio 16:9`）         |
 
 ---
 
 ### 🤖 模型与请求路由对应表
 
-| 公开模型 ID           | 输入模态   | 可选思考等级            | 上下文窗口    | 最大输出 Token | 对应后端 Runtime ID                                                                              |
-| :-------------------- | :--------- | :---------------------- | :------------ | :------------- | :----------------------------------------------------------------------------------------------- |
-| **`gemini-4-hydrogen`** | 文本、图片 | Low, Medium, High, XHigh | **1,048,576** | **65,536** | low → `gemini-4-hydrogen-low`<br>medium/high/xhigh 对应 `-medium` / `-high` / `-xhigh`          |
-| **`gemini-4-carbon`** | 文本、图片 | Low, Medium, High       | **1,048,576** | **65,535**     | low → `gemini-4-carbon-low`<br>medium/high 对应 `-medium` / `-high`                             |
-| **`gemini-4-argon`**  | 文本、图片 | Low, Medium, High       | **1,048,576** | **65,536**     | low → `gemini-4-argon-low`<br>medium → `gemini-4-argon-medium`<br>high → `gemini-4-argon-high` |
-| `gemini-3.8-flash`   | 文本、图片 | Low, Medium, High | 1,048,576     | 65,536         | low/medium/high 对应变体                                                                       |
-| `gemini-3.7-flash`   | 文本、图片 | Low, Medium, High | 1,048,576     | 65,536         | low/medium/high 对应变体                                                                       |
-| `gemini-3.6-flash`   | 文本、图片 | Low, Medium, High | 1,048,576     | 65,536         | low/medium/high 对应变体                                                                       |
-| `gemini-3.5-flash`   | 文本、图片 | Low, Medium, High | 1,048,576     | 65,536         | extra-low/low/agent 对应变体                                                                   |
-| `gemini-3.1-pro`     | 文本、图片 | Low, High         | 1,048,576     | 65,535         | low → `gemini-3.1-pro-low`<br>high → `gemini-pro-agent`                                        |
-| `claude-sonnet-4-6`  | 文本、图片 | High              | 200,000       | 64,000         | high → `claude-sonnet-4-6`                                                                     |
-| `claude-opus-4-6`    | 文本、图片 | High              | 250,000       | 64,000         | high → `claude-opus-4-6-thinking`                                                              |
-| `gpt-oss-120b`       | 纯文本     | Medium            | 131,072       | 32,768         | medium → `gpt-oss-120b-medium`                                                                 |
+| 公开模型 ID             | 输入模态   | 可选思考等级             | 上下文窗口    | 最大输出 Token | 对应后端 Runtime ID                                                                            |
+| :---------------------- | :--------- | :----------------------- | :------------ | :------------- | :--------------------------------------------------------------------------------------------- |
+| **`gemini-4-hydrogen`** | 文本、图片 | Low, Medium, High, XHigh | **1,048,576** | **65,536**     | low → `gemini-4-hydrogen-low`<br>medium/high/xhigh 对应 `-medium` / `-high` / `-xhigh`         |
+| **`gemini-4-carbon`**   | 文本、图片 | Low, Medium, High        | **1,048,576** | **65,535**     | low → `gemini-4-carbon-low`<br>medium/high 对应 `-medium` / `-high`                            |
+| **`gemini-4-argon`**    | 文本、图片 | Low, Medium, High        | **1,048,576** | **65,536**     | low → `gemini-4-argon-low`<br>medium → `gemini-4-argon-medium`<br>high → `gemini-4-argon-high` |
+| `gemini-3.8-flash`      | 文本、图片 | Low, Medium, High        | 1,048,576     | 65,536         | low/medium/high 对应变体                                                                       |
+| `gemini-3.7-flash`      | 文本、图片 | Low, Medium, High        | 1,048,576     | 65,536         | low/medium/high 对应变体                                                                       |
+| `gemini-3.6-flash`      | 文本、图片 | Low, Medium, High        | 1,048,576     | 65,536         | low/medium/high 对应变体                                                                       |
+| `gemini-3.5-flash`      | 文本、图片 | Low, Medium, High        | 1,048,576     | 65,536         | extra-low/low/agent 对应变体                                                                   |
+| `gemini-3.1-pro`        | 文本、图片 | Low, High                | 1,048,576     | 65,535         | low → `gemini-3.1-pro-low`<br>high → `gemini-pro-agent`                                        |
+| `claude-sonnet-4-6`     | 文本、图片 | High                     | 200,000       | 64,000         | high → `claude-sonnet-4-6`                                                                     |
+| `claude-opus-4-6`       | 文本、图片 | High                     | 250,000       | 64,000         | high → `claude-opus-4-6-thinking`                                                              |
+| `gpt-oss-120b`          | 纯文本     | Medium                   | 131,072       | 32,768         | medium → `gpt-oss-120b-medium`                                                                 |
 
 ---
 

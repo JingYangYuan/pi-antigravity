@@ -18,9 +18,9 @@ function entryFromSettings(): unknown {
     (process.env.HOME ? path.join(process.env.HOME, ".pi", "agent") : undefined);
   if (!agentDir) return undefined;
   try {
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(agentDir, "settings.json"), "utf8"),
-    ) as { pihubModelAccess?: Record<string, unknown> } | null;
+    const settings = JSON.parse(fs.readFileSync(path.join(agentDir, "settings.json"), "utf8")) as {
+      pihubModelAccess?: Record<string, unknown>;
+    } | null;
     return settings && typeof settings === "object"
       ? settings.pihubModelAccess?.[PROVIDER_ID]
       : undefined;

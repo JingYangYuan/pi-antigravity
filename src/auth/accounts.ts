@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { OAuthCredentials } from "@earendil-works/pi-ai";
 import { defaultProjectId } from "../client/client.js";
 import type { AntigravityApiKey, AntigravityOAuthCredentials } from "../types/types.js";
@@ -54,6 +54,10 @@ function readJsonObject(path: string): Record<string, unknown> | undefined {
 }
 
 function writePrivateJson(path: string, value: unknown): void {
+  const dir = dirname(path);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
   const tempPath = `${path}.${process.pid}.tmp`;
   writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   chmodSync(tempPath, 0o600);
@@ -167,7 +171,7 @@ function readAuthFile(): Record<string, unknown> {
   return parsed;
 }
 
-function writeActiveCredential(account: StoredAccount | undefined): void {
+export function writeActiveCredential(account: StoredAccount | undefined): void {
   const auth = readAuthFile();
   if (account) {
     auth.antigravity = {
